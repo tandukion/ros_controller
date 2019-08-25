@@ -1,0 +1,33 @@
+# Temp files
+*~
+*#
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Libraries
+*.lib
+*.a
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Compiled Static libraries
+*.lai
+*.la
+*.sdf
+*.opensdf
+*.sdf
+*.suo
+
+# Log files
+*.log
