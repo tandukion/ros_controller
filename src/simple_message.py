@@ -99,6 +99,11 @@ def serialize_message(b, seq, msg):
             for d in msg.data:
                 b.write(struct.pack('<I', d))
 
+        elif msg.msg_type == STATUS:
+            # Robot Status
+            for d in msg.data:
+                b.write(struct.pack('<I', d))
+
 
     except struct.error as e:
         raise Exception(e)
@@ -191,16 +196,6 @@ def deserialize_messages(b, msg):
 
         msg.set_header(msg_type, comm_type, reply_code)
         msg.assign_data(data)
-
-        # print("LENGTH: %s   MSG_TYPE: %s    COMM_TYPE: %s   REPLY_CODE: %s" % (message_length, msg_type, comm_type, reply_code))
-        # print(data)
-        # test print
-        if msg_type == JOINT_POSITION:
-            if comm_type == 1:
-                str = ''
-                for d in data:
-                    str += "%.2f, " %d
-                print("Current Joint State:", str)
 
         # Update the buffer back to its correct position for writing
         b.seek(start)
