@@ -42,4 +42,4 @@ while(1):
                 str = ''
                 for d in robotclient.message.data:
                     str += "%.2f, " %d
-                print("Current Joint State:", str)
+                print("Current Joint State:", str, end="\r", flush=True)

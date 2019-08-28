@@ -116,7 +116,7 @@ def serialize_message(b, seq, msg):
     b.seek(end)
 
 
-def deserialize_messages(b, msg):
+def deserialize_messages(b, msg, max_size=68):
     """
     Deserialize message and unpack the simple message
 
@@ -124,6 +124,7 @@ def deserialize_messages(b, msg):
     :type  b: StringIO or BytesIO
     :param msg: message read from the buffer
     :type  msg: SimpleMessage
+    :param max_size: max size of incoming message in bytes
     """
     try:
         start = 0
@@ -140,59 +141,59 @@ def deserialize_messages(b, msg):
 
         # Read the LENGTH of the message
         (message_length,) = struct.unpack('<I', b.read(4))
-        left -= 4
+        pos += 4
 
         # Read the MSG_TYPE of the message
         (msg_type,) = struct.unpack('<I', b.read(4))
-        left -= 4
+        pos += 4
 
         # Read the COMM_TYPE  of the message
         (comm_type,) = struct.unpack('<I', b.read(4))
-        left -= 4
+        pos += 4
 
         # Read the REPLY_CODE  of the message
         (reply_code,) = struct.unpack('<I', b.read(4))
-        left -= 4
+        pos += 4
 
         # Read the DATA on the rest of the message based on message type
         if msg_type == JOINT_POSITION:
             # Sequence Number
             (seq_num,) = struct.unpack('<I', b.read(4))
-            left -= 4
+            pos += 4
 
             # Joint Position data in rad
             data = []
-            while left > 0:
+            while pos < btell and pos < max_size:
                 (d,) = struct.unpack('<f', b.read(4))
                 data.append(d)
-                left -= 4
+                pos += 4
 
         elif msg_type == JOINT_TRAJ_PT:
             # Sequence Number
             (seq_num,) = struct.unpack('<I', b.read(4))
-            left -= 4
+            pos += 4
 
             # Joint Position data in rad
             data = []
-            while left > 0:
+            while pos < btell and pos < max_size:
                 (d,) = struct.unpack('<f', b.read(4))
                 data.append(d)
-                left -= 4
+                pos += 4
 
         elif msg_type == STATUS:
             data = []
-            while left > 0:
+            while pos < btell and pos < max_size:
                 (d,) = struct.unpack('<I', b.read(4))
                 data.append(d)
-                left -= 4
+                pos += 4
 
         # default with unsigned int
         else:
             data = []
-            while left > 0:
+            while pos < btell and pos < max_size:
                 (d,) = struct.unpack('<I', b.read(4))
                 data.append(d)
-                left -= 4
+                pos += 4
 
         msg.set_header(msg_type, comm_type, reply_code)
         msg.assign_data(data)
