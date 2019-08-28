@@ -7,8 +7,9 @@ import socket
 import struct
 import sys
 import threading
+import copy
 
-from src.msg import serialize_message, deserialize_messages
+from src.simple_message import *
 
 import select
 try:
@@ -22,77 +23,67 @@ except ImportError:
 #dummy
 joint_angle = [0, 0, 0, 0, 0, 0]
 
-def decode_simple_message_header(header_str):
+
+def read_messages(b, sock, buff_size):
     """
 
-    :param header_str:
-    :return:
+    :param b: buffer
+    :type  b: StringIO or BytesIO
+    :param sock: socket to read from
+    :param buff_size: buffer size
     """
-    (size, ) = struct.unpack('<I', header_str[0:4])
-    size += 4 # add in 4 to include size of size field
-    header_len = len(header_str)
-    if size > header_len:
-        raise Exception("Incomplete header. Expected %s bytes but only have %s"%((size+4), header_len))
-
-    d = {}
-    start = 4
-    while start < size:
-        (field_size, ) = struct.unpack('<I', header_str[start:start+4])
-        if field_size == 0:
-            raise Exception("Invalid 0-length handshake header field")
-        start += field_size + 4
-        if start > size:
-            raise Exception("Invalid line length in handshake header: %s"%size)
-        line = header_str[start-field_size:start]
-
-        #python3 compatibility
-        if python3 == 1:
-            line = line.decode()
-
-        idx = line.find("=")
-        if idx < 0:
-            raise Exception("Invalid line in handshake header: [%s]"%line)
-        key = line[:idx]
-        value = line[idx+1:]
-        d[key.strip()] = value
-    return d
-
-def read_header(sock, b , buff_size):
-    """
-
-    :param sock:
-    :param b:
-    :param buff_size:
-    :return:
-    """
+    # Read from socket
     header_str = None
     while not header_str:
         try:
             d = sock.recv(buff_size)
-            if not d:
-                raise Exception("connection from sender terminated before handshake header received. %s bytes were received. Please check sender for additional details."%b.tell())
             b.write(d)
+
             btell = b.tell()
             if btell > 4:
-                # most likely we will get the full header in the first recv, so
-                # not worth tiny optimizations possible here
                 bval = b.getvalue()
-                print(bval)
-                (size,) = struct.unpack('<I', bval[0:4])
-                if btell - 4 >= size:
-                    header_str = bval
+                # print(btell)
+                header_str = bval
 
-                    # memmove the remnants of the buffer back to the start
-                    leftovers = bval[size+4:]
-                    b.truncate(len(leftovers))
-                    b.seek(0)
-                    b.write(leftovers)
-                    header_recvd = True
         except (socket.timeout, Exception):
             pass
 
-    # process the header
-    return decode_simple_message_header(bval)
+    # Deserialize the message
+    message = SimpleMessage()
+    deserialize_messages(b, message)
+
+    # reset if everything was done
+    if b.tell() == 1:
+        b.seek(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class ServerSocket(object):
