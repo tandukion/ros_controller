@@ -1,7 +1,9 @@
 # Temp files
 *~
 *#
-*pyc
+*.pyc
+*.pyo
+__pycache__
 
 # Compiled Object files
 *.slo
@@ -32,3 +34,7 @@
 
 # Log files
 *.log
+
+# IDE config
+.idea/
+
