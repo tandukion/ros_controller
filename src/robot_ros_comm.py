@@ -4,14 +4,11 @@
 #
 
 import socket
-import struct
-import sys
 import threading
-import copy
-
+from math import degrees, radians
+from time import sleep
 from src.simple_message import *
 
-import select
 try:
     from cStringIO import StringIO #Python 2.x
     python3 = 0
@@ -21,7 +18,7 @@ except ImportError:
 
 
 #dummy
-joint_angle = [0, 0, 0, 0, 0, 0]
+joint_pos = [0, 0, 0, 0, 0, 0]
 
 
 def read_messages(b, sock, buff_size, msg):
@@ -57,6 +54,19 @@ def read_messages(b, sock, buff_size, msg):
     if b.tell() == 1:
         b.seek(0)
 
+
+def write_messages(b, sock, seq, msg):
+    # Serialize the message
+    serialize_messages(b, seq, msg)
+
+    # Send to socket
+    try:
+        sock.sendall(b.getvalue())
+    except socket.error as e:
+        raise Exception(e)
+
+    # clearing buffer
+    b.truncate(0)
 
 class ClientSocket(object):
     """
@@ -184,7 +194,7 @@ class ServerSocket(object):
             raise Exception("%s did not connect"%self.__class__.__name__)
         while not self.is_shutdown:
             try:
-                print('Trying to accept connection')
+                print('Accepting connection')
                 (client_sock, client_addr) = self.server_sock.accept()
             except socket.timeout:
                 print('socket timeout')
@@ -195,13 +205,9 @@ class ServerSocket(object):
                 if errno == 4:  # interrupted system call
                     continue
                 raise
-
-            print('Connected with ' + client_addr[0] + ':' + str(client_addr[1]))
-            if self.is_shutdown:
-                break
-
             try:
                 # leave threading decisions up to inbound_handler
+                print('Running connection handler')
                 self.inbound_handler(client_sock, client_addr)
             except socket.error as e:
                 if not self.is_shutdown:
@@ -263,45 +269,10 @@ class JointStreamerServer (MessageServer):
         handle_done = False
         buff_size = 4096
 
-        # Getting the header message
-        print('Getting header')
-        if python3 == 0:
-            header = read_header(sock, StringIO(), buff_size)
-        else:
-            header = read_header(sock, BytesIO(), buff_size)
-
         # Receving the command
         while not handle_done:
             try:
-                b = self.read_buff
-                msg_queue = []
-
-                try:
-                    sock.setblocking(1)
-                    while not msg_queue:
-                        if b.tell() >= 4:
-                            # Read message + deserialize message
-                            deserialize_messages(b, msg_queue, data_class=int, queue_size=65536)
-
-                        if not msg_queue:
-                            d = sock.recv(buff_size)
-                            if d:
-                                b.write(d)
-                            self.stat_bytes += len(d)
-
-                    self.stat_num_msg += len(msg_queue) #STATS
-                    # set the _connection_header field
-                    for m in msg_queue:
-                        m._connection_header = header
-                except Exception as e:
-                    raise Exception(e)
-
-                commands = msg_queue
-
-                for command in commands:
-                    self._handle_command(command)
-                handle_done = True
-
+                continue
             except:
                 continue
 
@@ -314,32 +285,33 @@ class RobotStateServer (MessageServer):
     """
 
     """
-    def __init__(self, port=11002):
-        super(RobotStateServer,self).__init__(port)
+    def __init__(self, port=11002, loop_rate=42):
+        super(RobotStateServer, self).__init__(port)
         self.port = port
         self.inbound_handler = self.robot_state_handler
+        self.loop_rate = loop_rate
         self.seq = 0
+        self.handle_done = False
 
     def robot_state_handler(self, sock, client_addr):
-        # create the message
-        self.seq += 1
-        messages = joint_angle
+        print("jumped into robot_state_handler")
+        self.handle_done = False
+        while not self.handle_done:
+            # create Joint Position message  #TODO: create how get the current joint position here
+            joint_pos_rad = list(map(radians, joint_pos))
 
-        # Serialize + sending message
-        # serialize_message(self.write_buff, self.seq, message)
+            message = SimpleMessage()
+            message.set_header(JOINT_POSITION, TOPIC, 0)
+            message.assign_data(joint_pos_rad)
 
-        encoded_message = []
-        for m in messages:
-            encoded_message.append(str(m))
+            # set seq_num to 0 for Joint Position Topic
+            seq = 0
 
-        s = b''.join([struct.pack('<I', len(m)) + m for m in encoded_message])
-        self.write_buff.write(s)
+            # Serialize + sending message
+            write_messages(BytesIO(), sock, seq, message)
 
-        # Write data
-        try:
-            sock.sendall(self.write_buff)
-        except socket.error as se:
-            pass
+            # sleep to get the frequency rate
+            sleep(1/self.loop_rate)
 
 
 class RobotROSCommunication(object):

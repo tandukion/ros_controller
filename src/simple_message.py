@@ -24,6 +24,9 @@ INVALID = 0
 SUCCESS = 1
 FAILURE = 2
 
+# DATA LIMIT
+MAX_JOINT_NUM = 10
+
 
 class SimpleMessage(object):
     """
@@ -64,7 +67,7 @@ class SimpleMessage(object):
         self.reply_code = code
 
 
-def serialize_message(b, seq, msg):
+def serialize_messages(b, seq, msg):
     """
     Serialize the simple message to the buffer
 
@@ -97,7 +100,11 @@ def serialize_message(b, seq, msg):
 
             # Joint Position data in rad
             for d in msg.data:
-                b.write(struct.pack('<I', d))
+                b.write(struct.pack('<f', d))
+
+            # Fill the remaining unused DOF with zeros
+            for i in range(10-len(msg.data)):
+                b.write(struct.pack('<f', 0))
 
         elif msg.msg_type == STATUS:
             # Robot Status
@@ -163,7 +170,7 @@ def deserialize_messages(b, msg, max_size=68):
 
             # Joint Position data in rad
             data = []
-            while pos < btell and pos < max_size:
+            for i in range(MAX_JOINT_NUM):
                 (d,) = struct.unpack('<f', b.read(4))
                 data.append(d)
                 pos += 4
@@ -175,7 +182,7 @@ def deserialize_messages(b, msg, max_size=68):
 
             # Joint Position data in rad
             data = []
-            while pos < btell and pos < max_size:
+            for i in range(MAX_JOINT_NUM):
                 (d,) = struct.unpack('<f', b.read(4))
                 data.append(d)
                 pos += 4

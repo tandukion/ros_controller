@@ -9,7 +9,7 @@ import busio
 from board import SCL, SDA              # import from adafruit_blinka
 from adafruit_pca9685 import PCA9685    # import from adafruit-circuitpython-pca9685
 
-from src.robotservo import RobotServo
+from src.robot_servo import RobotServo
 
 if __name__ == '__main__':
     i2c = busio.I2C(SCL, SDA)
