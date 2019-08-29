@@ -85,9 +85,12 @@ class SimpleMessage(object):
         elif type == JOINT_TRAJ_PT:
             data_range = MAX_JOINT_NUM + 2  # for velocity and duration
 
-        for i in range(data_range):
-            self.data[i] = 0
-
+        if len(self.data) > 0:
+            for i in range(data_range):
+                self.data[i] = 0
+        else:
+            for i in range(data_range):
+                self.data.append(0)
 
 def serialize_messages(b, seq, msg):
     """

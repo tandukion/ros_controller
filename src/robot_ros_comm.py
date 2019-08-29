@@ -350,16 +350,21 @@ class JointStreamerServer (MessageServer):
         # create incoming packet and outcoming packet
         joint_stream_message = SimpleMessage()
         reply_message = SimpleMessage()
-        reply_message.create_empty(JOINT_TRAJ_PT)
+        # reply with JOINT_POSITION packets
+        reply_message.create_empty(JOINT_POSITION)
+        reply_message.set_header(JOINT_POSITION, RESPONSE, SUCCESS)
 
         while not handle_done:
             # Recevie the packet
             read_messages(BytesIO(), sock, buff_size, joint_stream_message)
 
-            print("Got joint stream:")
-            print("MSG_TYPE: %s    COMM_TYPE: %s   REPLY_CODE: %s"
-                  % (joint_stream_message.msg_type, joint_stream_message.comm_type, joint_stream_message.reply_code))
-            print(joint_stream_message.data)
+            # print("Got joint stream:")
+            str = ''
+            str += "[%d] " % joint_stream_message.seq_num
+            for d in joint_stream_message.data:
+                str += "%.2f, " %d
+            print(str, end="\t")
+            print("")
 
             # Check sequence number
             if joint_stream_message.seq_num >= 0:
@@ -373,8 +378,9 @@ class JointStreamerServer (MessageServer):
                 self._handle_command(joint_stream_message)
 
     def _handle_command(self, command):
+        # print ("Set joint position based on command")
         # Convert to degrees
-        set_angle = list(map(radians, command.data[:MAX_JOINT_NUM]))
+        set_angle = list(map(degrees, command.data))
 
         # TODO: how to set robot joint position here
         for i in range(len(joint_pos)):
