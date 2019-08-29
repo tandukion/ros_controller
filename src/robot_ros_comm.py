@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
+# Currently only support Python 3.x
 
 import socket
 import threading
@@ -10,15 +11,15 @@ from time import sleep
 from src.simple_message import *
 
 try:
-    from cStringIO import StringIO #Python 2.x
+    from cStringIO import StringIO  # Python 2.x
     python3 = 0
 except ImportError:
-    from io import StringIO, BytesIO #Python 3.x
+    from io import StringIO, BytesIO  # Python 3.x
     python3 = 1
 
-
-#dummy
+# dummy
 joint_pos = [0, 0, 0, 0, 0, 0]
+
 
 """
 Basic functions for communication.
@@ -184,7 +185,7 @@ class ServerSocket(object):
             self.server_sock.listen(5)
             # print('Socket now listening')
         except socket.error as e:
-            print("Bind failed. Error Code : %s  Message %s" %(str(e[0]), e[1]))
+            print("Bind failed. Error : %s " % e)
 
     def start(self):
         """
@@ -200,7 +201,7 @@ class ServerSocket(object):
         """
         self.is_shutdown = False
         if not self.server_sock:
-            raise Exception("%s did not connect"%self.__class__.__name__)
+            raise Exception("%s did not connect" % self.__class__.__name__)
         while not self.is_shutdown:
             try:
                 print('Waiting for connection')
@@ -219,7 +220,7 @@ class ServerSocket(object):
             try:
                 # leave threading decisions up to inbound_handler
                 print('Running connection handler')
-                self.inbound_handler(client_sock, client_addr)
+                self.inbound_handler(client_sock)
             except socket.error as e:
                 if not self.is_shutdown:
                     print("Failed to handle inbound connection due to socket error: %s" % e)
@@ -240,18 +241,6 @@ class MessageServer(object):
         self.server = None
         self.lock = threading.Lock()
 
-        if python3 == 0: # Python 2.x
-            self.read_buff = StringIO()
-            self.write_buff = StringIO()
-        else: # Python 3.x
-            self.read_buff = BytesIO()
-            self.write_buff = BytesIO()
-
-        #STATS
-        self.stat_bytes = 0
-        # Number of messages that have passed through this transport
-        self.stat_num_msg = 0
-
     def start_server(self):
         """
         Start the socket server and passing the inbound handler
@@ -266,7 +255,7 @@ class MessageServer(object):
                     self.server.start()
             except Exception as e:
                 self.server = None
-                return 0, "unable to establish socket server: %s"%e, []
+                return 0, "unable to establish socket server: %s" % e, []
 
 
 class RobotStateServer (MessageServer):
@@ -288,7 +277,7 @@ class RobotStateServer (MessageServer):
         self.stat_count = 0  # counter for sending robot status every N=stat_loop joint status
         self.stat_loop = stat_loop
 
-    def robot_state_publisher(self, sock, client_addr):
+    def robot_state_publisher(self, sock):
         """
         Handler for sending the Joint Position and Robot State.
         """
@@ -343,7 +332,11 @@ class JointStreamerServer (MessageServer):
         self.loop_rate = loop_rate
         self.handle_done = False
 
-    def joint_streamer_handler(self, sock, client_addr):
+    def joint_streamer_handler(self, sock):
+        """
+        Handler for Joint Streamer messages from ROS.
+        Read the Joint Stream Trajectory Point message and reply with Joint-Position-type message
+        """
         handle_done = False
         buff_size = 4096
 
@@ -359,11 +352,11 @@ class JointStreamerServer (MessageServer):
             read_messages(BytesIO(), sock, buff_size, joint_stream_message)
 
             # print("Got joint stream:")
-            str = ''
-            str += "[%d] " % joint_stream_message.seq_num
+            print_str = ''
+            print_str += "[%d] " % joint_stream_message.seq_num
             for d in joint_stream_message.data:
-                str += "%.2f, " %d
-            print(str, end="\t")
+                print_str += "%.2f, " % d
+            print(print_str, end="\t")
             print("")
 
             # Check sequence number
@@ -378,6 +371,11 @@ class JointStreamerServer (MessageServer):
                 self._handle_command(joint_stream_message)
 
     def _handle_command(self, command):
+        """
+        Process the command message to update Joint Position with motion
+        :param command: command message from ROS
+        :type  command: SimpleMessage
+        """
         # print ("Set joint position based on command")
         # Convert to degrees
         set_angle = list(map(degrees, command.data))
@@ -385,17 +383,3 @@ class JointStreamerServer (MessageServer):
         # TODO: how to set robot joint position here
         for i in range(len(joint_pos)):
             joint_pos[i] = set_angle[i]
-
-
-class RobotROSCommunication(object):
-    """
-
-    """
-    def __init__(self):
-        _joint_state_thread = threading.Thread(target=self.joint_state_thread)
-        _joint_state_thread.setDaemon(True)
-        _joint_state_thread.start()
-
-
-    # def joint_state_thread(self):
-    #     continue
