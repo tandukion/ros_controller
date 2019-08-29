@@ -26,6 +26,7 @@ FAILURE = 2
 
 # DATA LIMIT
 MAX_JOINT_NUM = 10
+ROBOT_STATUS_DATA = 7
 
 
 class SimpleMessage(object):
@@ -189,7 +190,7 @@ def deserialize_messages(b, msg, max_size=68):
 
         elif msg_type == STATUS:
             data = []
-            while pos < btell and pos < max_size:
+            for i in range(ROBOT_STATUS_DATA):
                 (d,) = struct.unpack('<I', b.read(4))
                 data.append(d)
                 pos += 4

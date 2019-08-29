@@ -55,7 +55,7 @@ def read_messages(b, sock, buff_size, msg):
         b.seek(0)
 
 
-def write_messages(b, sock, seq, msg):
+def write_messages(b, sock, msg, seq=0):
     # Serialize the message
     serialize_messages(b, seq, msg)
 
@@ -285,30 +285,47 @@ class RobotStateServer (MessageServer):
     """
 
     """
-    def __init__(self, port=11002, loop_rate=42):
+    def __init__(self, port=11002, loop_rate=42, stat_loop=10):
         super(RobotStateServer, self).__init__(port)
         self.port = port
         self.inbound_handler = self.robot_state_handler
         self.loop_rate = loop_rate
         self.seq = 0
         self.handle_done = False
+        self.stat_count = 0  # counter for sending robot status every N=stat_loop joint status
+        self.stat_loop = stat_loop
 
     def robot_state_handler(self, sock, client_addr):
-        print("jumped into robot_state_handler")
         self.handle_done = False
         while not self.handle_done:
             # create Joint Position message  #TODO: create how get the current joint position here
             joint_pos_rad = list(map(radians, joint_pos))
 
-            message = SimpleMessage()
-            message.set_header(JOINT_POSITION, TOPIC, 0)
-            message.assign_data(joint_pos_rad)
+            joint_pos_message = SimpleMessage()
+            joint_pos_message.set_header(JOINT_POSITION, TOPIC, 0)
+            joint_pos_message.assign_data(joint_pos_rad)
 
             # set seq_num to 0 for Joint Position Topic
             seq = 0
 
             # Serialize + sending message
-            write_messages(BytesIO(), sock, seq, message)
+            write_messages(BytesIO(), sock, joint_pos_message, seq)
+
+            if self.stat_count >= self.stat_loop:
+                # print("Sending Robot Status")
+                # create Robot Status message  #TODO: create how get the current robot status here
+                dummy_status = [1, 0, 0, 0, 0, 1, 0]
+                robot_status = dummy_status
+                robot_status_message = SimpleMessage()
+                robot_status_message.set_header(STATUS, TOPIC, 0)
+                robot_status_message.assign_data(robot_status)
+
+                # Serialize + sending message, no need to use seq for Robot Status
+                write_messages(BytesIO(), sock, robot_status_message)
+
+                self.stat_count = 0
+            else:
+                self.stat_count += 1
 
             # sleep to get the frequency rate
             sleep(1/self.loop_rate)
