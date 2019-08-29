@@ -20,10 +20,14 @@ except ImportError:
 #dummy
 joint_pos = [0, 0, 0, 0, 0, 0]
 
+"""
+Basic functions for communication.
 
+These functions handle the reading and writing message in Simple Message
+"""
 def read_messages(b, sock, buff_size, msg):
     """
-    Read the message from socket connection.
+    Read the simple message from socket connection.
     Note that the connection should be already established.
 
     :param b: buffer
@@ -56,6 +60,16 @@ def read_messages(b, sock, buff_size, msg):
 
 
 def write_messages(b, sock, msg, seq=0):
+    """
+    Write the simple message to socket connection.
+
+    :param b: buffer
+    :type  b: StringIO or BytesIO
+    :param sock: socket to read from
+    :param msg: message to read
+    :type  msg: SimpleMessage
+    :param seq: sequence number of the message
+    """
     # Serialize the message
     serialize_messages(b, seq, msg)
 
@@ -68,6 +82,14 @@ def write_messages(b, sock, msg, seq=0):
     # clearing buffer
     b.truncate(0)
 
+
+"""
+Client classes
+    - ClientSocket
+
+Classes here are used when the program acts as a Client of the socket communication
+Mainly used only to check and verify the communication and testing functions
+"""
 class ClientSocket(object):
     """
     Simple Client socket class.
@@ -124,42 +146,29 @@ class ClientSocket(object):
                     print("Failed to handle inbound connection due to socket error: %s" % e)
 
 
+"""
+Server classes
+    - ServerSocket          : socket connection as a Server 
+    - MessageServer         : base class for handling the message as server
+    - RobotStateServer      : server for sending robot state (joint position + robot status)
+    - JointStreamerServer   : server for processing joint stream
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Classes here are used when the program acts as a Server of the socket communication.
+These classes are the main classes, if the program runs as robot controller.
+"""
 class ServerSocket(object):
     """
-    Simple server class that accept inbound TCP/IP connections.
-    This class handle the creation of server socket until accepting the connection.
+    Simple server class that accepts inbound TCP/IP connections.
+    This class handles the creation of server socket until accepting the connection.
     After the connection established, it jumps to the handler defined by the caller of this class.
     """
     def __init__(self,
                  inbound_handler,
                  port=0):
+        """
+        :param inbound_handler: handler method after connection with client is established
+        :param port: TCP port
+        """
         self.port = port
         self.addr = ''
         self.is_shutdown = False
@@ -216,12 +225,13 @@ class ServerSocket(object):
 
 class MessageServer(object):
     """
-    Base Server
+    Base class for handling the message as server.
+    Specific message should inherit from this class.
     """
-    def __init__(self, inbound_handler, port=11000):
+    def __init__(self, inbound_handler, port=0):
         """
-
-        :param port:
+        :param inbound_handler: handler method after connection with client is established
+        :param port: TCP port
         """
         self.inbound_handler = inbound_handler
         self.port = port
@@ -249,6 +259,7 @@ class MessageServer(object):
         with self.lock:
             try:
                 if not self.server:
+                    # Set the handler as the process after connection is established
                     self.server = ServerSocket(self.inbound_handler, self.port)
                     self.server.start()
             except Exception as e:
@@ -256,46 +267,29 @@ class MessageServer(object):
                 return 0, "unable to establish socket server: %s"%e, []
 
 
-class JointStreamerServer (MessageServer):
-    """
-
-    """
-    def __init__(self, port=11000):
-        super(JointStreamerServer,self).__init__(port)
-        self.port = port
-        self.inbound_handler = self.joint_streamer_handler
-
-    def joint_streamer_handler(self, sock, client_addr):
-        handle_done = False
-        buff_size = 4096
-
-        # Receving the command
-        while not handle_done:
-            try:
-                continue
-            except:
-                continue
-
-    def _handle_command(self, command):
-        print("Joint command: ")
-        print(command)
-
-
 class RobotStateServer (MessageServer):
     """
-
+    This class acts as server for sending robot state (joint position + robot status)
     """
     def __init__(self, port=11002, loop_rate=42, stat_loop=10):
+        """
+        :param port: TCP port for Robot State. By default = 11002 defined from ROS-Industrial
+        :param loop_rate: frequency for sending robot state
+        :param stat_loop: Robot Status frequency based on Joint Position messages
+        """
         super(RobotStateServer, self).__init__(port)
         self.port = port
-        self.inbound_handler = self.robot_state_handler
+        self.inbound_handler = self.robot_state_publisher
         self.loop_rate = loop_rate
         self.seq = 0
         self.handle_done = False
         self.stat_count = 0  # counter for sending robot status every N=stat_loop joint status
         self.stat_loop = stat_loop
 
-    def robot_state_handler(self, sock, client_addr):
+    def robot_state_publisher(self, sock, client_addr):
+        """
+        Handler for sending the Joint Position and Robot State.
+        """
         self.handle_done = False
         while not self.handle_done:
             # create Joint Position message  #TODO: create how get the current joint position here
@@ -329,6 +323,37 @@ class RobotStateServer (MessageServer):
 
             # sleep to get the frequency rate
             sleep(1/self.loop_rate)
+
+
+class JointStreamerServer (MessageServer):
+    """
+    This class acts as server for processing Joint Stream motion control from ROS
+    """
+    def __init__(self, port=11000, loop_rate=42):
+        """
+        :param port: TCP port for Joint Stream. By default = 11000 defined from ROS-Industrial
+        :param loop_rate: frequency for sending processing packet
+        """
+        super(JointStreamerServer, self).__init__(port)
+        self.port = port
+        self.inbound_handler = self.joint_streamer_handler
+        self.loop_rate = loop_rate
+        self.handle_done = False
+
+    def joint_streamer_handler(self, sock, client_addr):
+        handle_done = False
+        buff_size = 4096
+
+        # Receving the command
+        while not handle_done:
+            try:
+                continue
+            except:
+                continue
+
+    def _handle_command(self, command):
+        print("Joint command: ")
+        print(command)
 
 
 class RobotROSCommunication(object):
