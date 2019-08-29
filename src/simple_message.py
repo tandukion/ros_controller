@@ -38,6 +38,7 @@ class SimpleMessage(object):
         self.msg_type = None
         self.comm_type = None
         self.reply_code = None
+        self.seq_num = None
         self.data = []
 
     def set_header(self, msg_type, comm_type, reply_code):
@@ -66,6 +67,26 @@ class SimpleMessage(object):
 
     def set_reply_code(self, code):
         self.reply_code = code
+
+    def set_seq_num(self, seq):
+        self.seq_num = seq
+
+    def create_empty(self, type):
+        self.msg_type = 0
+        self.comm_type = 0
+        self.reply_code = 0
+        self.seq_num = 0
+
+        data_range = 0
+        if type == JOINT_POSITION:
+            data_range = MAX_JOINT_NUM
+        elif type == STATUS:
+            data_range = ROBOT_STATUS_DATA
+        elif type == JOINT_TRAJ_PT:
+            data_range = MAX_JOINT_NUM + 2  # for velocity and duration
+
+        for i in range(data_range):
+            self.data[i] = 0
 
 
 def serialize_messages(b, seq, msg):
@@ -183,7 +204,7 @@ def deserialize_messages(b, msg, max_size=68):
 
             # Joint Position data in rad
             data = []
-            for i in range(MAX_JOINT_NUM):
+            for i in range(MAX_JOINT_NUM + 2):
                 (d,) = struct.unpack('<f', b.read(4))
                 data.append(d)
                 pos += 4
@@ -205,6 +226,8 @@ def deserialize_messages(b, msg, max_size=68):
 
         msg.set_header(msg_type, comm_type, reply_code)
         msg.assign_data(data)
+        if msg_type == JOINT_POSITION or msg_type == JOINT_TRAJ_PT:
+            msg.set_seq_num(seq_num)
 
         # Update the buffer back to its correct position for writing
         b.seek(start)

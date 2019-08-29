@@ -178,11 +178,11 @@ class ServerSocket(object):
         try:
             self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            print('Socket created for Port %s' % self.port)
+            # print('Socket created for Port %s' % self.port)
             self.server_sock.bind((self.addr, self.port))
-            print('Socket bind complete')
+            # print('Socket bind complete')
             self.server_sock.listen(5)
-            print('Socket now listening')
+            # print('Socket now listening')
         except socket.error as e:
             print("Bind failed. Error Code : %s  Message %s" %(str(e[0]), e[1]))
 
@@ -203,7 +203,7 @@ class ServerSocket(object):
             raise Exception("%s did not connect"%self.__class__.__name__)
         while not self.is_shutdown:
             try:
-                print('Accepting connection')
+                print('Waiting for connection')
                 (client_sock, client_addr) = self.server_sock.accept()
             except socket.timeout:
                 print('socket timeout')
@@ -214,6 +214,8 @@ class ServerSocket(object):
                 if errno == 4:  # interrupted system call
                     continue
                 raise
+
+            print('Connected with ' + client_addr[0] + ':' + str(client_addr[1]))
             try:
                 # leave threading decisions up to inbound_handler
                 print('Running connection handler')
@@ -293,6 +295,7 @@ class RobotStateServer (MessageServer):
         self.handle_done = False
         while not self.handle_done:
             # create Joint Position message  #TODO: create how get the current joint position here
+            # convert to radians
             joint_pos_rad = list(map(radians, joint_pos))
 
             joint_pos_message = SimpleMessage()
@@ -344,16 +347,38 @@ class JointStreamerServer (MessageServer):
         handle_done = False
         buff_size = 4096
 
-        # Receving the command
+        # create incoming packet and outcoming packet
+        joint_stream_message = SimpleMessage()
+        reply_message = SimpleMessage()
+        reply_message.create_empty(JOINT_TRAJ_PT)
+
         while not handle_done:
-            try:
-                continue
-            except:
-                continue
+            # Recevie the packet
+            read_messages(BytesIO(), sock, buff_size, joint_stream_message)
+
+            print("Got joint stream:")
+            print("MSG_TYPE: %s    COMM_TYPE: %s   REPLY_CODE: %s"
+                  % (joint_stream_message.msg_type, joint_stream_message.comm_type, joint_stream_message.reply_code))
+            print(joint_stream_message.data)
+
+            # Check sequence number
+            if joint_stream_message.seq_num >= 0:
+                # Request new trajectory node
+                reply_message.set_seq_num(joint_stream_message.seq_num)
+                reply_message.set_reply_code(SUCCESS)
+
+                write_messages(BytesIO(), sock, reply_message)
+
+                # Execute the motion
+                self._handle_command(joint_stream_message)
 
     def _handle_command(self, command):
-        print("Joint command: ")
-        print(command)
+        # Convert to degrees
+        set_angle = list(map(radians, command.data[:MAX_JOINT_NUM]))
+
+        # TODO: how to set robot joint position here
+        for i in range(len(joint_pos)):
+            joint_pos[i] = set_angle[i]
 
 
 class RobotROSCommunication(object):
