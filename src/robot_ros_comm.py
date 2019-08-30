@@ -6,8 +6,9 @@
 
 import socket
 import threading
+import time
+import sched
 from math import degrees, radians
-from time import sleep
 from src.simple_message import *
 
 try:
@@ -119,7 +120,7 @@ class ClientSocket(object):
         Run the loop in separated thread
         """
         t = threading.Thread(target=self.run, args=())
-        # t.setDaemon(True)
+        t.setDaemon(True)
         t.start()
 
     def run(self):
@@ -192,7 +193,7 @@ class ServerSocket(object):
         Run the loop in separated thread
         """
         t = threading.Thread(target=self.run, args=())
-        # t.setDaemon(True)
+        t.setDaemon(True)
         t.start()
 
     def run(self):
@@ -262,7 +263,7 @@ class RobotStateServer (MessageServer):
     """
     This class acts as server for sending robot state (joint position + robot status)
     """
-    def __init__(self, port=11002, loop_rate=42, stat_loop=10):
+    def __init__(self, port=11002, loop_rate=40, stat_loop=10):
         """
         :param port: TCP port for Robot State. By default = 11002 defined from ROS-Industrial
         :param loop_rate: frequency for sending robot state
@@ -270,51 +271,58 @@ class RobotStateServer (MessageServer):
         """
         super(RobotStateServer, self).__init__(port)
         self.port = port
-        self.inbound_handler = self.robot_state_publisher
+        self.inbound_handler = self.publish_handler
         self.loop_rate = loop_rate
         self.seq = 0
         self.handle_done = False
         self.stat_count = 0  # counter for sending robot status every N=stat_loop joint status
         self.stat_loop = stat_loop
 
-    def robot_state_publisher(self, sock):
+        # Create scheduler
+        self.pub_period = 1/loop_rate
+        self.scheduler = sched.scheduler(time.time, time.sleep)
+
+        # Create message classes to send
+        self.joint_pos_message = SimpleMessage()
+        self.joint_pos_message.set_header(JOINT_POSITION, TOPIC, 0)
+        self.robot_status_message = SimpleMessage()
+        self.robot_status_message.set_header(STATUS, TOPIC, 0)
+
+    def publish_handler(self, sock):
         """
-        Handler for sending the Joint Position and Robot State.
+        Main handler for publishing Joint Position and Robot State.
+        Each handler run on schedule based on publish rate
+        :param sock: client socket, given from ServerSocket
         """
         self.handle_done = False
         while not self.handle_done:
-            # create Joint Position message  #TODO: create how get the current joint position here
-            # convert to radians
-            joint_pos_rad = list(map(radians, joint_pos))
+            self.scheduler.enter(self.pub_period, 1, self.joint_position_publisher(sock))
+            self.scheduler.enter(self.pub_period * self.stat_loop, 1, self.robot_state_publisher(sock))
 
-            joint_pos_message = SimpleMessage()
-            joint_pos_message.set_header(JOINT_POSITION, TOPIC, 0)
-            joint_pos_message.assign_data(joint_pos_rad)
+    def joint_position_publisher(self, sock):
+        """
+        Handler to publish Joint Position message
+        """
+        # create Joint Position message  #TODO: create how get the current joint position here
+        # convert to radians
+        joint_pos_rad = list(map(radians, joint_pos))
+        self.joint_pos_message.assign_data(joint_pos_rad)
+        # set seq_num to 0 for Joint Position Topic
+        self.seq = 0
 
-            # set seq_num to 0 for Joint Position Topic
-            seq = 0
+        # Serialize + sending message
+        write_messages(BytesIO(), sock, self.joint_pos_message, self.seq)
 
-            # Serialize + sending message
-            write_messages(BytesIO(), sock, joint_pos_message, seq)
-
-            if self.stat_count >= self.stat_loop:
-                # print("Sending Robot Status")
-                # create Robot Status message  #TODO: create how get the current robot status here
-                dummy_status = [1, 0, 0, 0, 0, 1, 0]
-                robot_status = dummy_status
-                robot_status_message = SimpleMessage()
-                robot_status_message.set_header(STATUS, TOPIC, 0)
-                robot_status_message.assign_data(robot_status)
-
-                # Serialize + sending message, no need to use seq for Robot Status
-                write_messages(BytesIO(), sock, robot_status_message)
-
-                self.stat_count = 0
-            else:
-                self.stat_count += 1
-
-            # sleep to get the frequency rate
-            sleep(1/self.loop_rate)
+    def robot_state_publisher(self, sock):
+        """
+        Handler to publish Robot State message
+        """
+        # create Robot Status message  #TODO: create how get the current robot status here
+        dummy_status = [1, 0, 0, 0, 0, 1, 0]
+        robot_status = dummy_status
+        self.robot_status_message.assign_data(robot_status)
+        # Serialize + sending message, no need to use seq for Robot Status
+        write_messages(BytesIO(), sock, self.robot_status_message)
 
 
 class JointStreamerServer (MessageServer):
