@@ -75,14 +75,18 @@ def write_messages(b, sock, msg, seq=0):
     # Serialize the message
     serialize_messages(b, seq, msg)
 
+    write_success = True
     # Send to socket
     try:
         sock.sendall(b.getvalue())
     except socket.error as e:
-        raise Exception(e)
+        # raise Exception(e)
+        print("Socket error\n", e)
+        write_success = False
 
     # clearing buffer
     b.truncate(0)
+    return write_success
 
 
 """
@@ -150,7 +154,7 @@ class ClientSocket(object):
 
 """
 Server classes
-    - ServerSocket          : socket connection as a Server 
+    - ServerSocket          : socket connection as a Server
     - MessageServer         : base class for handling the message as server
     - RobotStateServer      : server for sending robot state (joint position + robot status)
     - JointStreamerServer   : server for processing joint stream
@@ -218,13 +222,10 @@ class ServerSocket(object):
                 raise
 
             print('Connected with ' + client_addr[0] + ':' + str(client_addr[1]))
-            try:
-                # leave threading decisions up to inbound_handler
-                print('Running connection handler')
-                self.inbound_handler(client_sock)
-            except socket.error as e:
-                if not self.is_shutdown:
-                    print("Failed to handle inbound connection due to socket error: %s" % e)
+
+            # leave threading decisions up to inbound_handler
+            # print('Running connection handler')
+            self.inbound_handler(client_sock)
 
 
 class MessageServer(object):
@@ -274,7 +275,7 @@ class RobotStateServer (MessageServer):
         self.inbound_handler = self.publish_handler
         self.loop_rate = loop_rate
         self.seq = 0
-        self.handle_done = False
+        self.handle = True
         self.stat_count = 0  # counter for sending robot status every N=stat_loop joint status
         self.stat_loop = stat_loop
 
@@ -294,8 +295,8 @@ class RobotStateServer (MessageServer):
         Each handler run on schedule based on publish rate
         :param sock: client socket, given from ServerSocket
         """
-        self.handle_done = False
-        while not self.handle_done:
+        self.handle = True
+        while self.handle:
             self.scheduler.enter(self.pub_period, 1, self.joint_position_publisher(sock))
             self.scheduler.enter(self.pub_period * self.stat_loop, 1, self.robot_state_publisher(sock))
 
@@ -311,7 +312,7 @@ class RobotStateServer (MessageServer):
         self.seq = 0
 
         # Serialize + sending message
-        write_messages(BytesIO(), sock, self.joint_pos_message, self.seq)
+        self.handle = write_messages(BytesIO(), sock, self.joint_pos_message, self.seq)
 
     def robot_state_publisher(self, sock):
         """
@@ -322,7 +323,7 @@ class RobotStateServer (MessageServer):
         robot_status = dummy_status
         self.robot_status_message.assign_data(robot_status)
         # Serialize + sending message, no need to use seq for Robot Status
-        write_messages(BytesIO(), sock, self.robot_status_message)
+        self.handle = write_messages(BytesIO(), sock, self.robot_status_message)
 
 
 class JointStreamerServer (MessageServer):
