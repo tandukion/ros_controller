@@ -165,75 +165,90 @@ def deserialize_messages(b, msg, max_size=68):
         left = btell - pos
 
         # check to see if we even have a message
-        if left < 4:
-            return
+        if left >= 4:
+            # set position to start
+            b.seek(pos)
 
-        # set position to start
-        b.seek(pos)
-
-        # Read the LENGTH of the message
-        (message_length,) = struct.unpack('<I', b.read(4))
-        pos += 4
-
-        # Read the MSG_TYPE of the message
-        (msg_type,) = struct.unpack('<I', b.read(4))
-        pos += 4
-
-        # Read the COMM_TYPE  of the message
-        (comm_type,) = struct.unpack('<I', b.read(4))
-        pos += 4
-
-        # Read the REPLY_CODE  of the message
-        (reply_code,) = struct.unpack('<I', b.read(4))
-        pos += 4
-
-        # Read the DATA on the rest of the message based on message type
-        if msg_type == JOINT_POSITION:
-            # Sequence Number
-            (seq_num,) = struct.unpack('<I', b.read(4))
+            # Read the LENGTH of the message
+            (message_length,) = struct.unpack('<I', b.read(4))
             pos += 4
 
-            # Joint Position data in rad
-            data = []
-            for i in range(MAX_JOINT_NUM):
-                (d,) = struct.unpack('<f', b.read(4))
-                data.append(d)
+            if message_length > 1:
+                # Read the MSG_TYPE of the message
+                (msg_type,) = struct.unpack('<I', b.read(4))
                 pos += 4
 
-        elif msg_type == JOINT_TRAJ_PT:
-            # Sequence Number
-            (seq_num,) = struct.unpack('<I', b.read(4))
-            pos += 4
+                # print("btell: ", btell, "LENGTH: ", message_length, "\t MSG_TYPE: ", msg_type)
 
-            # Joint Position data in rad
-            data = []
-            for i in range(MAX_JOINT_NUM + 2):
-                (d,) = struct.unpack('<f', b.read(4))
-                data.append(d)
+                # Read the COMM_TYPE  of the message
+                (comm_type,) = struct.unpack('<I', b.read(4))
                 pos += 4
 
-        elif msg_type == STATUS:
-            data = []
-            for i in range(ROBOT_STATUS_DATA):
-                (d,) = struct.unpack('<I', b.read(4))
-                data.append(d)
+                # Read the REPLY_CODE  of the message
+                (reply_code,) = struct.unpack('<I', b.read(4))
                 pos += 4
 
-        # default with unsigned int
-        else:
-            data = []
-            while pos < btell and pos < max_size:
-                (d,) = struct.unpack('<I', b.read(4))
-                data.append(d)
-                pos += 4
+                # Read the DATA on the rest of the message based on message type
+                if msg_type == JOINT_POSITION:
+                    # Sequence Number
+                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    pos += 4
 
-        msg.set_header(msg_type, comm_type, reply_code)
-        msg.assign_data(data)
-        if msg_type == JOINT_POSITION or msg_type == JOINT_TRAJ_PT:
-            msg.set_seq_num(seq_num)
+                    # Joint Position data in rad
+                    data = []
+                    for i in range(MAX_JOINT_NUM):
+                        (d,) = struct.unpack('<f', b.read(4))
+                        data.append(d)
+                        pos += 4
+
+                elif msg_type == JOINT_TRAJ_PT:
+                    # Sequence Number
+                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    pos += 4
+
+                    # Joint Position data in rad
+                    data = []
+                    for i in range(MAX_JOINT_NUM + 2):
+                        (d,) = struct.unpack('<f', b.read(4))
+                        data.append(d)
+                        pos += 4
+
+                elif msg_type == STATUS:
+                    data = []
+                    for i in range(ROBOT_STATUS_DATA):
+                        (d,) = struct.unpack('<I', b.read(4))
+                        data.append(d)
+                        pos += 4
+
+                # default with unsigned int
+                else:
+                    data = []
+                    while pos < btell and pos < max_size:
+                        (d,) = struct.unpack('<I', b.read(4))
+                        data.append(d)
+                        pos += 4
+
+                msg.set_header(msg_type, comm_type, reply_code)
+                msg.assign_data(data)
+                if msg_type == JOINT_POSITION or msg_type == JOINT_TRAJ_PT:
+                    msg.set_seq_num(seq_num)
 
         # Update the buffer back to its correct position for writing
-        b.seek(start)
-        b.truncate(start)
+        if btell == pos:
+            #common case: no leftover data, reset the buffer
+            b.seek(start)
+            b.truncate(start)
+        else:
+            if pos != start:
+                #next packet is stuck in our buffer, copy it to the
+                #beginning of our buffer to keep things simple
+                b.seek(pos)
+                leftovers = b.read(btell-pos)
+                b.truncate(start + len(leftovers))
+                b.seek(start)
+                b.write(leftovers)
+            else:
+                b.seek(btell)
     except Exception as e:
+        print("\nbtell: ", btell, "LENGTH: ", message_length, "MSG_TYPE: ", msg_type)
         raise Exception(e)
