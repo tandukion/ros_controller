@@ -1,0 +1,62 @@
+{
+  "states": [
+    {
+      "name": "uninitialized",
+      "on_enter": "_on_state_enter",
+      "on_exit": "_on_state_exit"
+    },
+    {
+      "name": "initialized",
+      "on_enter": ["_on_state_enter", "_on_state_initialized"],
+      "on_exit": "_on_state_exit"
+    },
+    {
+      "name": "standby",
+      "on_enter": "_on_state_enter",
+      "on_exit": "_on_state_exit"
+    },
+    {
+      "name": "in_motion",
+      "on_enter": "_on_state_enter",
+      "on_exit": "_on_state_exit"
+    },
+    {
+      "name": "at_goal",
+      "on_enter": "_on_state_enter",
+      "on_exit": "_on_state_exit"
+    },
+    {
+      "name": "error",
+      "on_enter": "_on_state_enter",
+      "on_exit": "_on_state_exit"
+    }
+  ],
+  "transitions": [
+    {
+      "trigger": "trig_initialized",
+      "source": "uninitialized",
+      "dest": "initialized"
+    },
+    {
+      "trigger": "trig_standby",
+      "source": ["initialized", "at_goal", "error"],
+      "dest": "standby"
+    },
+    {
+      "trigger": "trig_motion",
+      "source": "standby",
+      "dest": "in_motion"
+    },
+    {
+      "trigger": "trig_motion_completed",
+      "source": "in_motion",
+      "dest": "at_goal"
+    },
+    {
+      "trigger": "trig_motion_error",
+      "source": "in_motion",
+      "dest": "error"
+    }
+  ],
+  "initial":"uninitialized"
+}
