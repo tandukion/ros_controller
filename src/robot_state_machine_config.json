@@ -17,12 +17,12 @@
     },
     {
       "name": "in_motion",
-      "on_enter": "_on_state_enter",
+      "on_enter": ["_on_state_enter", "_on_state_in_motion"],
       "on_exit": "_on_state_exit"
     },
     {
       "name": "at_goal",
-      "on_enter": "_on_state_enter",
+      "on_enter": ["_on_state_enter", "_on_state_at_goal"],
       "on_exit": "_on_state_exit"
     },
     {
