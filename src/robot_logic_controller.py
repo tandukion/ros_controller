@@ -4,7 +4,7 @@
 #
 
 import copy
-from src.robot_state_machine import RobotStateMachine
+from src.robot_state_machine import *
 from src.robot_ros_comm import RobotStateServer, JointStreamerServer
 
 # dummy
@@ -16,8 +16,11 @@ class RobotLogicController:
     def __init__(self):
         # TODO: make joint position, robot state class
         self.joint_pos = copy.deepcopy(joint_pos_dummy)
-        self.robot_status = copy.deepcopy(robot_status_dummy)
+        # self.robot_status = copy.deepcopy(robot_status_dummy)
         self.goal_joint_pos = []
+
+        self.robot_status = RobotStatus()
+
 
         # Starting State Machine
         self._state_machine = RobotStateMachine(model=self)
@@ -71,6 +74,7 @@ class RobotLogicController:
         self.trig_standby()
 
     """
+    Communication callback handlers
     """
     def get_joint_pos(self):
         return self.joint_pos
