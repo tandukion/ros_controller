@@ -96,7 +96,7 @@ class RobotStatus(object):
     def set_motion_possible(self):
         self.motion_possible = TRUE
 
-    def robot_status(self):
+    def get_robot_status(self):
         """
         Create a list of Robot Status and return it
         :return: list of status

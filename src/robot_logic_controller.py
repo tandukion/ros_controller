@@ -83,5 +83,5 @@ class RobotLogicController:
         return self.robot_status
 
     def move_robot(self, goal_angle):
-        self.goal_joint_pos = copy.deepcopy(goal_angle)
+        self.goal_joint_pos = copy.deepcopy(goal_angle[:5])
         self.trig_motion()
