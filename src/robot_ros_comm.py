@@ -264,7 +264,7 @@ class RobotStateServer (MessageServer):
     """
     This class acts as server for sending robot state (joint position + robot status)
     """
-    def __init__(self, controller=None, port=11002, loop_rate=40, stat_loop=10):
+    def __init__(self, port=11002, loop_rate=40, stat_loop=10, controller=None):
         """
         :param port: TCP port for Robot State. By default = 11002 defined from ROS-Industrial
         :param loop_rate: frequency for sending robot state

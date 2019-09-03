@@ -10,7 +10,7 @@ from src.robot_ros_comm import RobotStateServer, JointStreamerServer
 # dummy
 joint_pos_dummy = [0, 0, 0, 0, 0, 0]
 robot_status_dummy = [1, 0, 0, 0, 0, 1, 0]
-
+ROBOT_DOF = 6
 
 class RobotLogicController:
     def __init__(self):
@@ -18,8 +18,11 @@ class RobotLogicController:
         self.joint_pos = copy.deepcopy(joint_pos_dummy)
         # self.robot_status = copy.deepcopy(robot_status_dummy)
         self.goal_joint_pos = []
+        for i in range(ROBOT_DOF):
+            self.goal_joint_pos.append(0)
 
         self.robot_status = RobotStatus()
+
 
 
         # Starting State Machine
@@ -80,8 +83,9 @@ class RobotLogicController:
         return self.joint_pos
 
     def get_robot_status(self):
-        return self.robot_status
+        return self.robot_status.get_robot_status()
 
     def move_robot(self, goal_angle):
-        self.goal_joint_pos = copy.deepcopy(goal_angle[:5])
+        for i in range(ROBOT_DOF):
+            self.goal_joint_pos[i] = goal_angle[i]
         self.trig_motion()
