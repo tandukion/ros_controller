@@ -379,12 +379,13 @@ class JointStreamerServer (MessageServer):
             read_messages(BytesIO(), sock, buff_size, joint_stream_message)
 
             # print("Got joint stream:")
-            print_str = ''
-            print_str += "[%d] " % joint_stream_message.seq_num
-            for d in joint_stream_message.data:
-                print_str += "%.2f, " % d
-            print(print_str, end="\t")
-            print("")
+            # print_str = ''
+            # print_str += "[%d] " % joint_stream_message.seq_num
+            # for d in joint_stream_message.data:
+            #     print_str += "%.2f, " % d
+            # print(print_str, end="\t")
+            # print("")
+
 
             # Check sequence number
             if joint_stream_message.seq_num >= 0:
@@ -397,21 +398,23 @@ class JointStreamerServer (MessageServer):
                 # Execute the motion
                 self._handle_command(joint_stream_message)
 
-    def _handle_command(self, command):
+    def _handle_command(self, stream_message):
         """
         Process the command message to update Joint Position with motion
-        :param command: command message from ROS
-        :type  command: SimpleMessage
+        :param stream_message: command message from ROS
+        :type  stream_message: SimpleMessage
         """
         # print ("Set joint position based on command")
         # Convert to degrees
-        set_angle = list(map(degrees, command.data))
+        # set_angle = list(map(degrees, command.data))
 
         # TODO: how to set robot joint position here
         if self.controller:
             # Call function from main logic controller
-            self.controller.move_robot(set_angle)
+            # self.controller.move_robot(set_angle)
+            self.controller.move_robot(stream_message)
         else:
             # if not using logic controller, just update dummy (for testing)
+            set_angle = list(map(degrees, stream_message.data))
             for i in range(len(joint_pos_dummy)):
                 joint_pos_dummy[i] = set_angle[i]

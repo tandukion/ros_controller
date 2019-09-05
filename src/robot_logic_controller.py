@@ -34,9 +34,9 @@ class RobotLogicController:
         # Create Motion Controller for Joint Position
         # self.joint_pos = copy.deepcopy(joint_pos_dummy)
         self.joint_names = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
-        initial_joint_state = [0]*len(self.joint_names)
-        self.joint_pos = initial_joint_state
-        self.motion_control = MotionController(initial_joint_state, robot_servo=self.robot_servo)
+        initial_joint_pos = [0]*len(self.joint_names)
+        self.joint_pos = initial_joint_pos
+        self.motion_control = MotionController(initial_joint_pos, robot_servo=self.robot_servo)
 
         # Create Robot Status class
         # self.robot_status = copy.deepcopy(robot_status_dummy)
@@ -66,7 +66,7 @@ class RobotLogicController:
         """
         General callback on entering any state
         """
-        print("Entering state: ", self.state)
+        # print("Entering state: ", self.state)
 
     def _on_state_exit(self):
         """
@@ -86,9 +86,9 @@ class RobotLogicController:
         Callback in motion
         """
         # TODO: How to move robot here
-        print("Moving robot")
-        for i in range(len(self.joint_pos)):
-            self.joint_pos[i] = self.goal_joint_pos[i]
+        # print("Moving robot")
+        # for i in range(len(self.joint_pos)):
+        #     self.joint_pos[i] = self.goal_joint_pos[i]
 
         self.trig_motion_completed()
 
@@ -96,7 +96,7 @@ class RobotLogicController:
         """
         Callback on arriving at goal point
         """
-        print("Reach goal trajectory point")
+        # print("Reach goal trajectory point")
         self.trig_standby()
 
     """
@@ -109,7 +109,13 @@ class RobotLogicController:
     def get_robot_status(self):
         return self.robot_status.get_robot_status()
 
-    def move_robot(self, goal_angle):
-        for i in range(ROBOT_DOF):
-            self.goal_joint_pos[i] = goal_angle[i]
+    def move_robot(self, stream_message):
+        # for i in range(ROBOT_DOF):
+        #     self.goal_joint_pos[i] = goal_angle[i]
+
+        # check if it a new trajectory
+        if stream_message.seq_num == 0:
+            self.motion_control.trigger_new_trajectory()
+        else:
+            self.motion_control.add_motion_waypoint(stream_message)
         self.trig_motion()
