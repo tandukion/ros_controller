@@ -113,25 +113,27 @@ class MotionController:
         :param alpha:
         :return:
         """
-        intermediate_point = JointTrajectoryPt(len(self.joint_positions))
+        # print('Interpolating')
+        inter_pt = JointTrajectoryPt(len(self.joint_positions))
 
-        for start_pos, goal_pos in zip(start_point.positions, goal_point.positions):
-            intermediate_point.positions.append(start_pos + alpha*(goal_pos - start_pos))
-        intermediate_point.duration = goal_point.duration + \
-                                        alpha*(goal_point.duration - start_point.duration)
-        return intermediate_point
+        for i in range(len(self.joint_positions)):
+            inter_pt.positions[i] = start_point.positions[i] + alpha*(goal_point.positions[i] - start_point.positions[i])
+        inter_pt.duration = alpha*(goal_point.duration - start_point.duration)
+        return inter_pt
 
-    def _move_to(self, goal_point):
-        time.sleep(goal_point.duration)
+    def _move_to(self, goal_point, move_duration):
+        if move_duration >= 0:
+            time.sleep(move_duration)
 
         with self.lock:
             # Move the motors
             if not self.sig_stop:
                 for i in range(len(self.joint_positions)):
                     self.robot_servo[i].setAngle(goal_point.positions[i])
+                    self.joint_positions[i] = goal_point.positions[i]
 
                 # Update current joint positions, since there is no sensors
-                self.joint_positions = goal_point.positions[:]
+                # self.joint_positions = goal_point.positions[:]
             else:
                 print('Stopping motion immediately, clearing stop signal')
                 self.sig_stop = False
@@ -139,64 +141,37 @@ class MotionController:
     def _motion_worker(self):
 
         last_goal_point = JointTrajectoryPt(len(self.joint_positions))
-        # with self.lock:
-        try:
-            last_goal_point.set_positions(self.joint_positions)
-            current_goal_point = self.motion_buffer.get()
 
-            print_str = 'GOAL: '
-            for d in range(len(current_goal_point.positions)):
-                print_str += "%d, " % current_goal_point.positions[d]
-            print_str += "%.2f, " % current_goal_point.velocities
-            print_str += "%.2f, " % current_goal_point.duration
-            print(print_str)
+        while not self.sig_shutdown:
+            try:
+                last_goal_point.set_positions(self.joint_positions)
+                current_goal_point = self.motion_buffer.get()
 
+                # if we set update rate/duration
+                if self.update_duration > 0:
+                    goal_duration = current_goal_point.duration
 
-            # if we set update rate/duration
-            # if self.update_duration > 0:
-            #     goal_duration = current_goal_point.duration
-            #
-            #     # move during goal duration
-            #     while self.update_duration < goal_duration:
-            #         intermediate_point = self.interpolate(last_goal_point, current_goal_point,
-            #                                                    self.update_duration/goal_duration)
-            #
-            #         # print_str = 'INTER: '
-            #         # for d in range(len(intermediate_point.positions)):
-            #         #     print_str += "%d, " % intermediate_point.positions[d]
-            #         # print_str += "%.2f, " % intermediate_point.velocities
-            #         # print_str += "%.2f, " % intermediate_point.duration
-            #         # print(print_str)
-            #
-            #         # Move to intermediate point
-            #         self._move_to(intermediate_point)
-            #
-            #         # Update the last goal point and goal duration
-            #         last_goal_point = copy.deepcopy(intermediate_point)
-            #         goal_duration -= intermediate_point.duration
+                    # move during goal duration
+                    while self.update_duration < goal_duration:
+                        intermediate_point = self.interpolate(last_goal_point, current_goal_point,
+                                                                   self.update_duration/goal_duration)
 
-            # if current new goal time is less than last goal time, it is a new trajectory. just copy it
-            # if current_goal_point.time_from_start < last_goal_point.time_from_start:
-            #     goal_duration = current_goal_point.time_from_start
-            # else:
-            #     goal_duration = current_goal_point.time_from_start - last_goal_point.time_from_start
-            #     # if motion update duration is less than trajectory duration, it is possible to interpolate
-            #     if self.update_duration > 0:
-            #         trajectory_duration = goal_duration.to_sec()
-            #
-            #         # move
-            #         while self.update_duration < goal_duration:
-            #             intermediate_point = self.interpolate(last_goal_point, current_goal_point,
-            #                                                        self.update_duration.to_sec()/goal_duration.to_sec())
-            #
-            #             # Move to intermediate point
-            #             self._move_to(intermediate_point, self.update_duration.to_sec())
-            #
-            #             # Update the last goal point to current point
-            #             last_goal_point = copy.deepcopy(intermediate_point)
-            #             goal_duration = current_goal_point.time_from_start - intermediate_point.time_from_start
-            #
-            # self._move_to(current_goal_point, goal_duration)
-            # last_goal_point = copy.deepcopy(current_goal_point)
-        except Exception as e:
-            pass
+                        # print_str = 'INTER: '
+                        # for d in range(len(intermediate_point.positions)):
+                        #     print_str += "%d, " % intermediate_point.positions[d]
+                        # print_str += "%.2f, " % intermediate_point.velocities
+                        # print_str += "%.2f, " % intermediate_point.duration
+                        # print(print_str)
+
+                        # Move to intermediate point
+                        self._move_to(intermediate_point, intermediate_point.duration)
+
+                        # Update the last goal point and goal duration
+                        last_goal_point = copy.deepcopy(intermediate_point)
+                        goal_duration -= intermediate_point.duration
+
+                # Handling the last point when goal duration already <= 0
+                self._move_to(current_goal_point, goal_duration)
+
+            except Exception as e:
+                pass
