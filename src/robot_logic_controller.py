@@ -19,6 +19,7 @@ joint_pos_dummy = [0, 0, 0, 0, 0, 0]
 robot_status_dummy = [1, 0, 0, 0, 0, 1, 0]
 ROBOT_DOF = 6
 
+
 class RobotLogicController:
     def __init__(self):
         # Create Robot Servo
@@ -45,8 +46,6 @@ class RobotLogicController:
             self.goal_joint_pos.append(0)
 
         self.robot_status = RobotStatus()
-
-
 
         # Start State Machine
         self._state_machine = RobotStateMachine(model=self)

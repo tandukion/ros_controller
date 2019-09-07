@@ -71,6 +71,7 @@ def write_messages(b, sock, msg, seq=0):
     :param msg: message to read
     :type  msg: SimpleMessage
     :param seq: sequence number of the message
+    :type  seq: int
     """
     # Serialize the message
     serialize_messages(b, seq, msg)
@@ -269,6 +270,8 @@ class RobotStateServer (MessageServer):
         :param port: TCP port for Robot State. By default = 11002 defined from ROS-Industrial
         :param loop_rate: frequency for sending robot state
         :param stat_loop: Robot Status frequency based on Joint Position messages
+        :param controller: robot controller which handles the joint position
+        :type  controller: RobotLogicController
         """
         super(RobotStateServer, self).__init__(port)
         self.controller = controller
@@ -367,7 +370,7 @@ class JointStreamerServer (MessageServer):
         handle_done = False
         buff_size = 4096
 
-        # create incoming packet and outcoming packet
+        # create incoming packet and out coming packet
         joint_stream_message = SimpleMessage()
         reply_message = SimpleMessage()
         # reply with JOINT_POSITION packets
@@ -375,7 +378,7 @@ class JointStreamerServer (MessageServer):
         reply_message.set_header(JOINT_POSITION, RESPONSE, SUCCESS)
 
         while not handle_done:
-            # Recevie the packet
+            # Receive the packet
             read_messages(BytesIO(), sock, buff_size, joint_stream_message)
 
             # print("Got joint stream:")
@@ -385,7 +388,6 @@ class JointStreamerServer (MessageServer):
             #     print_str += "%.2f, " % d
             # print(print_str, end="\t")
             # print("")
-
 
             # Check sequence number
             if joint_stream_message.seq_num >= 0:
