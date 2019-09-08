@@ -17,8 +17,10 @@ from src.motion_controller import *
 # dummy
 joint_pos_dummy = [0, 0, 0, 0, 0, 0]
 robot_status_dummy = [1, 0, 0, 0, 0, 1, 0]
-ROBOT_DOF = 6
 
+# CONFIG
+ROBOT_DOF = 6
+HOME_POSITION = [0, 30, 0, 0, 30, 0]
 
 class RobotLogicController:
     def __init__(self):
@@ -29,7 +31,7 @@ class RobotLogicController:
 
         self.robot_servo = []
         for i in range(ROBOT_DOF):
-            self.robot_servo.append(RobotServo(pca.channels[0]))
+            self.robot_servo.append(RobotServo(pca.channels[i]))
 
         # TODO: make joint position, robot state class
         # Create Motion Controller for Joint Position
@@ -37,7 +39,8 @@ class RobotLogicController:
         self.joint_names = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
         initial_joint_pos = [0]*len(self.joint_names)
         self.joint_pos = initial_joint_pos
-        self.motion_control = MotionController(initial_joint_pos, robot_servo=self.robot_servo)
+        self.home_pos = HOME_POSITION
+        self.motion_controller = MotionController(initial_joint_pos, self.home_pos, robot_servo=self.robot_servo)
 
         # Create Robot Status class
         # self.robot_status = copy.deepcopy(robot_status_dummy)
@@ -78,6 +81,9 @@ class RobotLogicController:
         Callback on entering initialized state
         """
         print("Initialized.")
+        print("Moving robot to HOME position")
+        self.motion_controller.move_to_home_from_uninitialized()
+        print("Robot at HOME")
         self.trig_standby()
 
     def _on_state_in_motion(self):
@@ -102,7 +108,7 @@ class RobotLogicController:
     Communication callback handlers
     """
     def get_joint_pos(self):
-        self.joint_pos = self.motion_control.get_joint_position()
+        self.joint_pos = self.motion_controller.get_joint_position()
         return self.joint_pos
 
     def get_robot_status(self):
@@ -114,7 +120,7 @@ class RobotLogicController:
 
         # check if it a new trajectory
         if stream_message.seq_num == 0:
-            self.motion_control.trigger_new_trajectory()
+            self.motion_controller.trigger_new_trajectory()
         else:
-            self.motion_control.add_motion_waypoint(stream_message)
+            self.motion_controller.add_motion_waypoint(stream_message)
         self.trig_motion()

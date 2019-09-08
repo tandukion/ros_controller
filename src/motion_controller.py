@@ -51,7 +51,7 @@ class MotionController:
     Class that controls the robot motion.
     Trajectory points use JointTrajectoryPt class.
     """
-    def __init__(self, initial_joint_pos, robot_servo=None, update_rate=100, buff_size=0):
+    def __init__(self, initial_joint_pos, home_pos, robot_servo=None, update_rate=100, buff_size=0):
         """
         :param initial_joint_pos: initial joint positions after initialization
         :type  initial_joint_pos: list of float
@@ -71,6 +71,7 @@ class MotionController:
 
         # Initialize Joint Positions
         self.joint_positions = initial_joint_pos
+        self.home_position = home_pos
 
         self.robot_servo = robot_servo
 
@@ -185,12 +186,17 @@ class MotionController:
                 last_goal_point.set_positions(self.joint_positions)
                 current_goal_point = self.motion_buffer.get()
 
+                # Updating with current joint positions
+                with self.lock:
+                    last_goal_point.set_positions(self.joint_positions)
+
                 # if we set update rate/duration
                 if self.update_duration > 0:
                     goal_duration = current_goal_point.duration
 
                     # move during goal duration
                     while self.update_duration < goal_duration:
+
                         intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
 
                         # print_str = 'INTER: '
@@ -212,3 +218,25 @@ class MotionController:
 
             except Exception as e:
                 pass
+
+    def move_to_home(self):
+        """
+        Moves the robot to home position
+        """
+        home_pt = JointTrajectoryPt(len(self.home_position))
+        home_pt.set_positions(self.home_position)
+        home_pt.set_velocities(0)
+        home_pt.set_duration(0)
+        self._move_to(home_pt, home_pt.duration)
+
+    def move_to_home_from_uninitialized(self):
+        """
+        Moves the robot to home position from uninitialized.
+        Need to move the robot servo one by one for safety
+        """
+        home_pt = JointTrajectoryPt(len(self.home_position))
+        home_pt.set_positions(self.joint_positions)
+        home_pt.set_duration(0.5)
+        for i in range(len(self.home_position)):
+            home_pt.positions[i] = self.home_position[i]
+            self._move_to(home_pt, home_pt.duration)
