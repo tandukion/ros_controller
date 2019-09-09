@@ -71,6 +71,7 @@ class MotionController:
 
         # Initialize Joint Positions
         self.joint_positions = initial_joint_pos
+        self.joint_velocities = 0
         self.home_position = home_pos
 
         self.robot_servo = robot_servo
@@ -150,6 +151,41 @@ class MotionController:
         inter_pt.duration = alpha*(goal_point.duration - start_point.duration)
         return inter_pt
 
+    def cubic_interpolate(self, start_point, goal_point, time_inter, delta_time):
+        """
+        Use Cubic Hermite spline for cubic interpolation https://en.wikipedia.org/wiki/Cubic_Hermite_spline
+            h1(t) =  2t^3 - 3t^2 - 1
+            h2(t) = -2t^3 + 3t^2
+            h3(t) =   t^3 - 2t^2 + t
+            h4(t) =   t^3 -  t^2
+        with initial x at t=0 (x',v',t') and last x at t=1 (x,v,t),
+        positon at interpolation xi:
+            xi = h1.x' + h2.x + h3.v' + h4.v
+        equation (after derivated):
+            xi = x' + a1.ti + a2.ti^2 + a3.ti^3
+            a1 =    v'/dt
+            a2 =  3(dx/dt^2) - (dv+v')/dt^2
+            a3 = -2(dx/dt^3) +      dv/dt^3
+            with  dt = t - t'
+                  dx = x - x'
+                  dv = v + v'
+        """
+        # print('Cubic Interpolation')
+        inter_pt = JointTrajectoryPt(len(self.joint_positions))
+        for i in range(len(self.joint_positions)):
+            dt = delta_time
+            dx = goal_point.positions[i] - start_point.positions[i]
+            dv = goal_point.velocities   + start_point.velocities
+            a1 = start_point.velocities / dt
+            a2 =  3*(dx/pow(dt,2)) - (dv + start_point.velocities)/pow(dt,2)
+            a3 = -2*(dx/pow(dt,3)) + dv/pow(dt,3)
+
+            xi = start_point.positions + a1*time_inter + a2*pow(time_inter,2) + a3*pow(time_inter,3)
+            inter_pt.positions[i] = xi
+        inter_pt.duration = time_inter
+        inter_pt.velocities = goal_point.velocities
+        return inter_pt
+
     def _move_to(self, goal_point, move_duration):
         """
         Moves robot servos and updating Joint Positions
@@ -167,6 +203,7 @@ class MotionController:
                 for i in range(len(self.joint_positions)):
                     self.robot_servo[i].setAngle(goal_point.positions[i])
                     self.joint_positions[i] = goal_point.positions[i]
+                self.joint_velocities = goal_point.velocities
 
                 # Update current joint positions, since there is no sensors
                 # self.joint_positions = goal_point.positions[:]
@@ -184,6 +221,7 @@ class MotionController:
         while not self.sig_shutdown:
             try:
                 last_goal_point.set_positions(self.joint_positions)
+                last_goal_point.set_velocities(self.joint_velocities)
                 current_goal_point = self.motion_buffer.get()
 
                 # Updating with current joint positions
@@ -197,7 +235,14 @@ class MotionController:
                     # move during goal duration
                     while self.update_duration < goal_duration:
 
-                        intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
+                        # Do liner interpolation if no velocities
+                        if last_goal_point.velocities == 0 or current_goal_point.velocities == 0:
+                            intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
+                            print("ALPHA %f" % (self.update_duration/goal_duration))
+
+                        # or do cubic interpolation
+                        else:
+                            intermediate_point = self.cubic_interpolate(last_goal_point, current_goal_point, self.update_duration, goal_duration)
 
                         # print_str = 'INTER: '
                         # for d in range(len(intermediate_point.positions)):
@@ -212,9 +257,12 @@ class MotionController:
                         # Update the last goal point and goal duration
                         last_goal_point = copy.deepcopy(intermediate_point)
                         goal_duration -= intermediate_point.duration
+                        # print("Update duration %f" % intermediate_point.duration)
+                        # print("Move duration %f" % goal_duration)
 
                 # Handling the last point when goal duration already <= 0
                 self._move_to(current_goal_point, goal_duration)
+                # print("Move duration %f" % goal_duration)
 
             except Exception as e:
                 pass
