@@ -4,12 +4,16 @@
 #
 
 import copy
-import busio
+try:
+    import busio
 
-from board import SCL, SDA              # import from adafruit_blinka
-from adafruit_pca9685 import PCA9685    # import from adafruit-circuitpython-pca9685
+    from board import SCL, SDA              # import from adafruit_blinka
+    from adafruit_pca9685 import PCA9685    # import from adafruit-circuitpython-pca9685
 
-from src.robot_servo import RobotServo
+    from src.robot_servo import RobotServo
+except ImportError:
+    print("Not using real board")
+
 from src.robot_state_machine import *
 from src.robot_ros_comm import RobotStateServer, JointStreamerServer
 from src.motion_controller import *
@@ -20,18 +24,20 @@ robot_status_dummy = [1, 0, 0, 0, 0, 1, 0]
 
 # CONFIG
 ROBOT_DOF = 6
-HOME_POSITION = [0, 30, 0, 0, 30, 0]
+# HOME_POSITION = [0, 30, 0, 0, 30, 0]
+HOME_POSITION = [0, 0, 0, 0, -90, 0]
 
 class RobotLogicController:
-    def __init__(self):
+    def __init__(self, sim=False):
         # Create Robot Servo
-        i2c = busio.I2C(SCL, SDA)
-        pca = PCA9685(i2c)
-        pca.frequency = 50
+        if not sim:
+            i2c = busio.I2C(SCL, SDA)
+            pca = PCA9685(i2c)
+            pca.frequency = 50
 
-        self.robot_servo = []
-        for i in range(ROBOT_DOF):
-            self.robot_servo.append(RobotServo(pca.channels[i]))
+            self.robot_servo = []
+            for i in range(ROBOT_DOF):
+                self.robot_servo.append(RobotServo(pca.channels[i]))
 
         # TODO: make joint position, robot state class
         # Create Motion Controller for Joint Position
@@ -40,7 +46,11 @@ class RobotLogicController:
         initial_joint_pos = [0]*len(self.joint_names)
         self.joint_pos = initial_joint_pos
         self.home_pos = HOME_POSITION
-        self.motion_controller = MotionController(initial_joint_pos, self.home_pos, robot_servo=self.robot_servo)
+
+        if not sim:
+            self.motion_controller = MotionController(initial_joint_pos, self.home_pos, robot_servo=self.robot_servo)
+        else:
+            self.motion_controller = MotionController(initial_joint_pos, self.home_pos)
 
         # Create Robot Status class
         # self.robot_status = copy.deepcopy(robot_status_dummy)

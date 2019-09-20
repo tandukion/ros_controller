@@ -201,7 +201,8 @@ class MotionController:
             # Move the motors
             if not self.sig_stop:
                 for i in range(len(self.joint_positions)):
-                    self.robot_servo[i].setAngle(goal_point.positions[i])
+                    if self.robot_servo:
+                        self.robot_servo[i].setAngle(goal_point.positions[i])
                     self.joint_positions[i] = goal_point.positions[i]
                 self.joint_velocities = goal_point.velocities
 
@@ -236,13 +237,13 @@ class MotionController:
                     while self.update_duration < goal_duration:
 
                         # Do liner interpolation if no velocities
-                        if last_goal_point.velocities == 0 or current_goal_point.velocities == 0:
-                            intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
-                            print("ALPHA %f" % (self.update_duration/goal_duration))
-
-                        # or do cubic interpolation
-                        else:
-                            intermediate_point = self.cubic_interpolate(last_goal_point, current_goal_point, self.update_duration, goal_duration)
+                        # if last_goal_point.velocities == 0 or current_goal_point.velocities == 0:
+                        intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
+                        #     print("ALPHA %f" % (self.update_duration/goal_duration))
+                        #
+                        # # or do cubic interpolation
+                        # else:
+                        #     intermediate_point = self.cubic_interpolate(last_goal_point, current_goal_point, self.update_duration, goal_duration)
 
                         # print_str = 'INTER: '
                         # for d in range(len(intermediate_point.positions)):

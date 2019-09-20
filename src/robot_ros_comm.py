@@ -418,5 +418,6 @@ class JointStreamerServer (MessageServer):
         else:
             # if not using logic controller, just update dummy (for testing)
             set_angle = list(map(degrees, stream_message.data))
+            time.sleep(0.01)
             for i in range(len(joint_pos_dummy)):
                 joint_pos_dummy[i] = set_angle[i]
