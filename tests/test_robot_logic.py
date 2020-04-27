@@ -3,10 +3,10 @@
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
 
-from src.robot_logic_controller import RobotLogicController
+from scripts.robot_logic_controller import RobotLogicController
 
 
-robot = RobotLogicController()
+robot = RobotLogicController(sim=True)
 
 while 1:
     continue

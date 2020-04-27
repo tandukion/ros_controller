@@ -2,8 +2,7 @@
 #
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
-import sys
-from src.robot_ros_comm import *
+from scripts.ros_comm.ros_comm import *
 from time import sleep
 
 robot_state_publisher = RobotStateServer()

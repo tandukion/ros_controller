@@ -2,9 +2,7 @@
 #
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
-import sys
-from src.robot_ros_comm import *
-from time import sleep
+from scripts.ros_comm.ros_comm import *
 
 joint_streamer_publisher = JointStreamerServer()
 joint_streamer_publisher.start_server()

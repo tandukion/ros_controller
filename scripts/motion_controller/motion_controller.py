@@ -10,12 +10,10 @@ import time
 import queue as Queue
 from math import degrees
 
-# from trajectory_msgs.msg import JointTrajectoryPoint
-
 
 class JointTrajectoryPt(object):
     """
-    Class that handles Joint Trajectory Point.
+    Class that handles Joint Trajectory Point (trajectory_msgs/JointTrajectoryPoint).
     This class replace the JointTrajectoryPoint class from trajectory_msgs ROS package
     """
     def __init__(self, joint_num):

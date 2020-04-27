@@ -3,20 +3,19 @@
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
 
-import copy
 try:
     import busio
 
     from board import SCL, SDA              # import from adafruit_blinka
     from adafruit_pca9685 import PCA9685    # import from adafruit-circuitpython-pca9685
 
-    from src.robot_servo import RobotServo
+    from scripts.servo_driver.robot_servo import RobotServo
 except ImportError:
     print("Not using real board")
 
-from src.robot_state_machine import *
-from src.robot_ros_comm import RobotStateServer, JointStreamerServer
-from src.motion_controller import *
+from scripts.robot_state_machine import *
+from scripts.ros_comm.ros_comm import RobotStateServer, JointStreamerServer
+from scripts.motion_controller.motion_controller import *
 
 # dummy
 joint_pos_dummy = [0, 0, 0, 0, 0, 0]

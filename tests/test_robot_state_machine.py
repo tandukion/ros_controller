@@ -3,7 +3,7 @@
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
 
-from src.robot_state_machine import *
+from scripts.robot_state_machine import *
 from time import sleep
 
 

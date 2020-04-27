@@ -66,7 +66,7 @@ class RobotStatus(object):
         self.error_code = 0
         self.in_error = FALSE
         self.in_motion = FALSE
-        self.mode = MANUAL
+        self.mode = AUTO                # by default, robot running with ROS should be running with AUTO mode
         self.motion_possible = FALSE
 
     def set_drives_power(self):

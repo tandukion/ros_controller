@@ -9,7 +9,7 @@ import threading
 import time
 import sched
 from math import degrees, radians
-from src.simple_message import *
+from scripts.ros_comm.simple_message import *
 
 try:
     from cStringIO import StringIO  # Python 2.x

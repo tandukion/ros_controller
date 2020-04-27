@@ -5,7 +5,7 @@
 
 # Created to test as a client from Fanuc Roboguide to know the simple message sent from controller
 
-from src.robot_ros_comm import *
+from scripts.ros_comm.ros_comm import *
 # import socket
 #
 # from io import StringIO, BytesIO #Python 3.x
