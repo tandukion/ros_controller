@@ -14,7 +14,8 @@ except ImportError:
     print("Not using real board")
 
 from scripts.robot_state_machine import *
-from scripts.ros_comm.ros_comm import RobotStateServer, JointStreamerServer
+from scripts.ros_comm.joint_streamer_server import JointStreamerServer
+from scripts.ros_comm.robot_state_server import RobotStateServer
 from scripts.motion_controller.motion_controller import *
 
 # dummy
