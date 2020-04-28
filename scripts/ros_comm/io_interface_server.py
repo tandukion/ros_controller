@@ -42,7 +42,7 @@ class IoInterfaceServer (MessageServer):
 
         while socket_connected:
             # Receive the packet
-            socket_connected = read_messages(BytesIO(), sock, buff_size, io_message)
+            (socket_connected, message_ready) = read_messages(BytesIO(), sock, buff_size, io_message)
             if not socket_connected:
                 break
 

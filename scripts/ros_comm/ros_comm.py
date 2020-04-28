@@ -37,25 +37,35 @@ def read_messages(b, sock, buff_size, msg):
     :type  msg: SimpleMessage
     """
     # Read from socket
-    message_read = False
-    while not message_read:
+    socket_status = True
+    message_ready = False
+    sock.settimeout(5)
+    while not message_ready:
         try:
             d = sock.recv(buff_size)
             b.write(d)
 
             btell = b.tell()
             if btell > 4:
-                message_read = True
+                message_ready = True
 
-        except (socket.timeout, Exception):
-            pass
+        except socket.timeout:
+            break
+        except socket.error as e:
+            sockname = sock.getsockname()
+            print("Socket %s:%d error. " % (sockname[0], sockname[1]), e)
+            socket_status = False
+            break
 
-    # Deserialize the message
-    deserialize_messages(b, msg)
+    if message_ready:
+        # Deserialize the message
+        deserialize_messages(b, msg)
 
     # reset if everything was done
     if b.tell() == 1:
         b.seek(0)
+
+    return socket_status, message_ready
 
 
 def write_messages(b, sock, msg, seq=0):
@@ -65,6 +75,7 @@ def write_messages(b, sock, msg, seq=0):
     :param b: buffer
     :type  b: StringIO or BytesIO
     :param sock: socket to read from
+    :param sock: socket.socket
     :param msg: message to read
     :type  msg: SimpleMessage
     :param seq: sequence number of the message
@@ -79,7 +90,8 @@ def write_messages(b, sock, msg, seq=0):
         sock.sendall(b.getvalue())
     except socket.error as e:
         # raise Exception(e)
-        print("Socket error\n", e)
+        sockname = sock.getsockname()
+        print("Socket %s:%d error. " % (sockname[0], sockname[1]), e)
         write_success = False
 
     # clearing buffer
@@ -207,7 +219,7 @@ class ServerSocket(object):
             raise Exception("%s did not connect" % self.__class__.__name__)
         while not self.is_shutdown:
             try:
-                print('Waiting for connection')
+                print('[%d] Waiting for connection' % self.port)
                 (client_sock, client_addr) = self.server_sock.accept()
             except socket.timeout:
                 print('socket timeout')
@@ -219,7 +231,7 @@ class ServerSocket(object):
                     continue
                 raise
 
-            print('Connected with ' + client_addr[0] + ':' + str(client_addr[1]))
+            print('[%d]' % self.port + ' Connected with ' + client_addr[0] + ':' + str(client_addr[1]))
 
             # leave threading decisions up to inbound_handler
             # print('Running connection handler')

@@ -36,7 +36,7 @@ class JointStreamerServer (MessageServer):
         Handler for Joint Streamer messages from ROS.
         Read the Joint Stream Trajectory Point message and reply with Joint-Position-type message
         """
-        handle_done = False
+        socket_connected = True
         buff_size = 4096
 
         # create incoming packet and out coming packet
@@ -46,28 +46,43 @@ class JointStreamerServer (MessageServer):
         reply_message.create_empty(JOINT_POSITION)
         reply_message.set_header(JOINT_POSITION, RESPONSE, SUCCESS)
 
-        while not handle_done:
+        while socket_connected:
             # Receive the packet
-            read_messages(BytesIO(), sock, buff_size, joint_stream_message)
+            (socket_connected, message_ready) = read_messages(BytesIO(), sock, buff_size, joint_stream_message)
+            if not socket_connected:
+                break
 
-            # print("Got joint stream:")
-            # print_str = ''
-            # print_str += "[%d] " % joint_stream_message.seq_num
-            # for d in joint_stream_message.data:
-            #     print_str += "%.2f, " % d
-            # print(print_str, end="\t")
-            # print("")
+            if message_ready:
+                # print("Got joint stream:")
+                # print_str = ''
+                # print_str += "[%d " % joint_stream_message.msg_type
+                # print_str += "%d %d] " % (joint_stream_message.comm_type, joint_stream_message.reply_code)
+                # for d in joint_stream_message.data:
+                #     print_str += "%.2f, " % d
+                # print(print_str, end="\t")
+                # print("")
 
-            # Check sequence number
-            if joint_stream_message.seq_num >= 0:
-                # Request new trajectory node
-                reply_message.set_seq_num(joint_stream_message.seq_num)
-                reply_message.set_reply_code(SUCCESS)
+                # Default General Robot
+                if joint_stream_message.msg_type == JOINT_POSITION or joint_stream_message.msg_type == JOINT_TRAJ_PT:
+                    # Check sequence number
+                    if joint_stream_message.seq_num >= 0:
+                        # Request new trajectory node
+                        reply_message.set_seq_num(joint_stream_message.seq_num)
+                        reply_message.set_reply_code(SUCCESS)
 
-                write_messages(BytesIO(), sock, reply_message)
+                        write_messages(BytesIO(), sock, reply_message)
 
-                # Execute the motion
-                self._handle_command(joint_stream_message)
+                        # Execute the motion
+                        self._handle_command(joint_stream_message)
+
+                # Yaskawa Motoman
+                elif joint_stream_message.msg_type == MOTOMAN_MOTION_CTRL:
+                    # Check the command
+                    command = joint_stream_message.ctrl_cmd
+                    if command == MOTOMAN_CMD_STOP_MOTION or command == MOTOMAN_CMD_STOP_TRAJ_MODE:
+                        # Disconnect the connection on stopping motion
+                        print("Stopping joint trajectory streaming")
+                        socket_connected = False
 
     def _handle_command(self, stream_message):
         """

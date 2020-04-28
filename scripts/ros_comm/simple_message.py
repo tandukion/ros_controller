@@ -49,6 +49,13 @@ ROS_MSG_MOTO_JOINT_FEEDBACK_EX = 2017
 ROS_MSG_MOTO_SELECT_TOOL = 2018
 ROS_MSG_MOTO_GET_DH_PARAMETERS = 2020
 
+# MOTOMAN CONTROL COMMAND
+MOTOMAN_CMD_CHECK_MOTION_READY = 200101
+MOTOMAN_CMD_CHECK_QUEUE_CNT = 200102
+MOTOMAN_CMD_STOP_MOTION = 200111
+MOTOMAN_CMD_START_TRAJ_MODE = 200121
+MOTOMAN_CMD_STOP_TRAJ_MODE = 200122
+
 
 class SimpleMessage(object):
     """
@@ -61,6 +68,10 @@ class SimpleMessage(object):
         self.reply_code = None
         self.seq_num = None
         self.data = []
+
+        # Robot Vendor Specific Messages
+        self.robot_id = None
+        self.ctrl_cmd = None
 
     def set_header(self, msg_type, comm_type, reply_code):
         """
@@ -91,6 +102,12 @@ class SimpleMessage(object):
 
     def set_seq_num(self, seq):
         self.seq_num = seq
+
+    def set_robot_id(self, value):
+        self.robot_id = value
+
+    def set_ctrl_cmd(self, value):
+        self.ctrl_cmd = value
 
     def create_empty(self, type):
         self.msg_type = 0
@@ -194,11 +211,13 @@ def deserialize_messages(b, msg, max_size=68):
             # set position to start
             b.seek(pos)
 
+            # ------ PREFIX ------
             # Read the LENGTH of the message
             (message_length,) = struct.unpack('<I', b.read(4))
             pos += 4
 
             if message_length > 1:
+                # ------ HEADER ------
                 # Read the MSG_TYPE of the message
                 (msg_type,) = struct.unpack('<I', b.read(4))
                 pos += 4
@@ -213,6 +232,7 @@ def deserialize_messages(b, msg, max_size=68):
                 (reply_code,) = struct.unpack('<I', b.read(4))
                 pos += 4
 
+                # ------ BODY ------
                 # Read the DATA on the rest of the message based on message type
                 if msg_type == JOINT_POSITION:
                     # Sequence Number
@@ -245,6 +265,27 @@ def deserialize_messages(b, msg, max_size=68):
                         data.append(d)
                         pos += 4
 
+                # ROBOT Vendor Specific Messages
+                elif msg_type == MOTOMAN_MOTION_CTRL:
+                    # Robot ID Number
+                    (robot_id,) = struct.unpack('<I', b.read(4))
+                    pos += 4
+
+                    # Sequence Number
+                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    pos += 4
+
+                    # Control Command Number
+                    (ctrl_cmd,) = struct.unpack('<I', b.read(4))
+                    pos += 4
+
+                    # Joint Position data in rad
+                    data = []
+                    for i in range(MAX_JOINT_NUM):
+                        (d,) = struct.unpack('<f', b.read(4))
+                        data.append(d)
+                        pos += 4
+
                 # default with unsigned int
                 else:
                     data = []
@@ -255,8 +296,16 @@ def deserialize_messages(b, msg, max_size=68):
 
                 msg.set_header(msg_type, comm_type, reply_code)
                 msg.assign_data(data)
+
+                # Set sequence number on message with seq_num
                 if msg_type == JOINT_POSITION or msg_type == JOINT_TRAJ_PT:
                     msg.set_seq_num(seq_num)
+
+                # ROBOT Vendor Specific Messages
+                elif msg_type == MOTOMAN_MOTION_CTRL:
+                    msg.set_robot_id(robot_id)
+                    msg.set_seq_num(seq_num)
+                    msg.set_ctrl_cmd(ctrl_cmd)
 
         # Update the buffer back to its correct position for writing
         if btell == pos:
