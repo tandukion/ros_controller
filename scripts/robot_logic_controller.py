@@ -16,6 +16,7 @@ except ImportError:
 from scripts.robot_state_machine import *
 from scripts.ros_comm.joint_streamer_server import JointStreamerServer
 from scripts.ros_comm.robot_state_server import RobotStateServer
+from scripts.ros_comm.io_interface_server import IoInterfaceServer
 from scripts.motion_controller.motion_controller import *
 
 # dummy
@@ -26,6 +27,15 @@ robot_status_dummy = [1, 0, 0, 0, 0, 1, 0]
 ROBOT_DOF = 6
 # HOME_POSITION = [0, 30, 0, 0, 30, 0]
 HOME_POSITION = [0, 0, 0, 0, -90, 0]
+JOINT_NAMES = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+
+JOINT_STREAM_PORT = 11000
+ROBOT_STATE_PORT = 11002
+IO_INTERFACE_PORT = 11003
+MOTOMAN_JOINT_STREAM_PORT = 50240
+MOTOMAN_ROBOT_STATE_PORT = 50241
+MOTOMAN_IO_INTERFACE_PORT = 50242
+
 
 class RobotLogicController:
     def __init__(self, sim=False):
@@ -42,7 +52,7 @@ class RobotLogicController:
         # TODO: make joint position, robot state class
         # Create Motion Controller for Joint Position
         # self.joint_pos = copy.deepcopy(joint_pos_dummy)
-        self.joint_names = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+        self.joint_names = JOINT_NAMES
         initial_joint_pos = [0]*len(self.joint_names)
         self.joint_pos = initial_joint_pos
         self.home_pos = HOME_POSITION
@@ -64,10 +74,12 @@ class RobotLogicController:
         self._state_machine = RobotStateMachine(model=self)
 
         # Create Communication Server
-        self._robot_state_pub = RobotStateServer(controller=self)
-        self._robot_state_pub.start_server()
-        self._joint_streamer_pub = JointStreamerServer(controller=self)
+        self._joint_streamer_pub = JointStreamerServer(controller=self, port=JOINT_STREAM_PORT)
         self._joint_streamer_pub.start_server()
+        self._robot_state_pub = RobotStateServer(controller=self, port=ROBOT_STATE_PORT)
+        self._robot_state_pub.start_server()
+        self._io_streamer_pub = IoInterfaceServer(controller=self, port=IO_INTERFACE_PORT)
+        self._io_streamer_pub.start_server()
 
         self.trig_initialized()
 

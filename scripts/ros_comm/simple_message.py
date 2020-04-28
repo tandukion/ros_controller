@@ -28,6 +28,27 @@ FAILURE = 2
 MAX_JOINT_NUM = 10
 ROBOT_STATUS_DATA = 7
 
+# MOTOMAN SIMPLE MESSAGE
+MOTOMAN_IO_FALURE = 0
+MOTOMAN_IO_SUCCESS = 1
+
+MOTOMAN_MOTION_CTRL = 2001
+MOTOMAN_MOTION_REPLY = 2002
+ROS_MSG_MOTO_READ_IO_BIT = 2003
+ROS_MSG_MOTO_READ_IO_BIT_REPLY = 2004
+ROS_MSG_MOTO_WRITE_IO_BIT = 2005
+ROS_MSG_MOTO_WRITE_IO_BIT_REPLY = 2006
+ROS_MSG_MOTO_READ_IO_GROUP = 2007
+ROS_MSG_MOTO_READ_IO_GROUP_REPLY = 2008
+ROS_MSG_MOTO_WRITE_IO_GROUP = 2009
+ROS_MSG_MOTO_WRITE_IO_GROUP_REPLY = 2010
+ROS_MSG_MOTO_IOCTRL_REPLY = 2011
+
+ROS_MSG_MOTO_JOINT_TRAJ_PT_FULL_EX = 2016
+ROS_MSG_MOTO_JOINT_FEEDBACK_EX = 2017
+ROS_MSG_MOTO_SELECT_TOOL = 2018
+ROS_MSG_MOTO_GET_DH_PARAMETERS = 2020
+
 
 class SimpleMessage(object):
     """
@@ -136,6 +157,10 @@ def serialize_messages(b, seq, msg):
             for d in msg.data:
                 b.write(struct.pack('<I', d))
 
+        else:
+            # Any message with integer data
+            for d in msg.data:
+                b.write(struct.pack('<I', d))
 
     except struct.error as e:
         raise Exception(e)
