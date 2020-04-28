@@ -30,8 +30,11 @@ class IoInterfaceServer (MessageServer):
         # IO port
         self.io_ports = {}
 
-    def assign_io_number(self, number, value):
-        self.io_ports[str(number)] = value
+    def set_io_port(self, address, value):
+        self.io_ports[str(address)] = value
+
+    def get_io_port(self, address):
+        return self.io_ports[str(address)]
 
     def io_interface_handler(self, sock):
         socket_connected = True
@@ -46,9 +49,6 @@ class IoInterfaceServer (MessageServer):
             if not socket_connected:
                 break
 
-            # Read the data
-            io_command = io_message.data
-
             # print("Got io stream:")
             # print_str = ''
             # print_str += "[%d] " % io_stream_message.msg_type
@@ -58,17 +58,31 @@ class IoInterfaceServer (MessageServer):
             # print(print_str, end="\t")
             # print("")
 
-            # Process the command
             # FIXME: The command is configured according to Yaskawa IO configuration for now
             # Reply for Read IO
             if io_message.msg_type == ROS_MSG_MOTO_READ_IO_BIT or io_message.msg_type == ROS_MSG_MOTO_READ_IO_GROUP:
+                # Process the message
+                address = io_message.data[0]
+
+                # Read the IO port
+                # Single read
+                if io_message.msg_type == ROS_MSG_MOTO_READ_IO_BIT:
+                    value = self.get_io_port(address)
+                # Group read
+                else:
+                    value = 0
+                    for i in range(8):
+                        read_bit = self.get_io_port(address+i)
+
+                        # add the bit to the return value
+                        value += read_bit << i
+
                 # Create the reply message
                 reply_message = SimpleMessage()
                 reply_message.set_header(io_message.msg_type+1, RESPONSE, SUCCESS)
 
                 # Add value
-                # FIXME: change this dummy value
-                reply_message.data.append(0)
+                reply_message.data.append(value)
                 # Add result_code
                 reply_message.data.append(MOTOMAN_IO_SUCCESS)
 
@@ -77,6 +91,25 @@ class IoInterfaceServer (MessageServer):
 
             # Reply for Write IO
             if io_message.msg_type == ROS_MSG_MOTO_WRITE_IO_BIT or io_message.msg_type == ROS_MSG_MOTO_WRITE_IO_GROUP:
+                # Process the message
+                address = io_message.data[0]
+                value = io_message.data[1]
+
+                # Assign the IO port
+                # Single write
+                if io_message.msg_type == ROS_MSG_MOTO_WRITE_IO_BIT:
+                    self.set_io_port(address, value)
+                # Group write
+                else:
+                    base_address = address * 10
+
+                    # Check based on I/O type on first number
+                    if base_address >= 10000:
+                        # Loop on 8 bit of IO group
+                        for i in range(8):
+                            # Set the IO for the specific IO port
+                            self.set_io_port(base_address+i, (value & (1 << i)))
+
                 # Create the reply message
                 reply_message = SimpleMessage()
                 reply_message.set_header(io_message.msg_type+1, RESPONSE, SUCCESS)
