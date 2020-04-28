@@ -14,6 +14,7 @@ except ImportError:
     print("Not using real board")
 
 from scripts.robot_state_machine import *
+from scripts.ros_comm.simple_message import *
 from scripts.ros_comm.joint_streamer_server import JointStreamerServer
 from scripts.ros_comm.robot_state_server import RobotStateServer
 from scripts.ros_comm.io_interface_server import IoInterfaceServer
@@ -26,7 +27,7 @@ robot_status_dummy = [1, 0, 0, 0, 0, 1, 0]
 # CONFIG
 ROBOT_DOF = 6
 # HOME_POSITION = [0, 30, 0, 0, 30, 0]
-HOME_POSITION = [0, 0, 0, 0, -90, 0]
+HOME_POSITION = [0, -30, -30, 0, -90, 0]
 JOINT_NAMES = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
 
 JOINT_STREAM_PORT = 11000
@@ -74,12 +75,15 @@ class RobotLogicController:
         self._state_machine = RobotStateMachine(model=self)
 
         # Create Communication Server
-        self._joint_streamer_pub = JointStreamerServer(controller=self, port=JOINT_STREAM_PORT)
-        self._joint_streamer_pub.start_server()
-        self._robot_state_pub = RobotStateServer(controller=self, port=ROBOT_STATE_PORT)
-        self._robot_state_pub.start_server()
-        self._io_streamer_pub = IoInterfaceServer(controller=self, port=IO_INTERFACE_PORT)
-        self._io_streamer_pub.start_server()
+        self.joint_streamer_server = JointStreamerServer(controller=self, port=JOINT_STREAM_PORT)
+        # self.joint_streamer_server = JointStreamerServer(controller=self, port=MOTOMAN_JOINT_STREAM_PORT)
+        self.joint_streamer_server.start_server()
+        self.robot_state_server = RobotStateServer(controller=self, port=ROBOT_STATE_PORT)
+        # self.robot_state_server = RobotStateServer(controller=self, port=MOTOMAN_ROBOT_STATE_PORT)
+        self.robot_state_server.start_server()
+        self.io_interface_server = IoInterfaceServer(controller=self, port=IO_INTERFACE_PORT)
+        # self.io_interface_server = IoInterfaceServer(controller=self, port=MOTOMAN_IO_INTERFACE_PORT)
+        self.io_interface_server.start_server()
 
         self.trig_initialized()
 
@@ -117,6 +121,9 @@ class RobotLogicController:
         # for i in range(len(self.joint_pos)):
         #     self.joint_pos[i] = self.goal_joint_pos[i]
 
+        # Set the robot state into in_motion
+        self.robot_status.set_motion(TRUE)
+
         self.trig_motion_completed()
 
     def _on_state_at_goal(self):
@@ -124,6 +131,10 @@ class RobotLogicController:
         Callback on arriving at goal point
         """
         # print("Reach goal trajectory point")
+
+        # Set the robot state into NOT in_motion
+        self.robot_status.set_motion(FALSE)
+
         self.trig_standby()
 
     """
@@ -136,13 +147,29 @@ class RobotLogicController:
     def get_robot_status(self):
         return self.robot_status.get_robot_status()
 
+    def set_robot_motion_possible(self, value=True):
+        self.robot_status.set_motion_possible(value)
+
+    """
+    Motion signal handlers
+    """
+    def stop_motion(self):
+        self.motion_controller.stop()
+
     def move_robot(self, stream_message):
         # for i in range(ROBOT_DOF):
         #     self.goal_joint_pos[i] = goal_angle[i]
 
-        # check if it a new trajectory
-        if stream_message.seq_num == 0:
-            self.motion_controller.trigger_new_trajectory()
-        else:
+        # Simple Joint Position
+        if stream_message.msg_type == JOINT_POSITION or stream_message.msg_type == JOINT_TRAJ_PT:
+            # check if it a new trajectory
+            if stream_message.seq_num == 0:
+                print("Got new trajectory")
+                self.motion_controller.trigger_new_trajectory()
+            else:
+                self.motion_controller.add_motion_waypoint(stream_message)
+
+        elif stream_message.msg_type == JOINT_TRAJ_PT_FULL:
             self.motion_controller.add_motion_waypoint(stream_message)
+
         self.trig_motion()

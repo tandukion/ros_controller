@@ -56,6 +56,20 @@ MOTOMAN_CMD_STOP_MOTION = 200111
 MOTOMAN_CMD_START_TRAJ_MODE = 200121
 MOTOMAN_CMD_STOP_TRAJ_MODE = 200122
 
+# MOTOMAN REPLY RESULT
+MOTOMAN_CMD_SUCCESS = 0
+MOTOMAN_CMD_TRUE = 0
+MOTOMAN_CMD_BUSY = 1
+MOTOMAN_CMD_FAILURE = 2
+MOTOMAN_CMD_FALSE = 2
+MOTOMAN_CMD_INVALID = 3
+MOTOMAN_CMD_ALARM = 4
+MOTOMAN_CMD_NOT_READY = 5
+MOTOMAN_CMD_MP_FAILURE = 6
+
+# MOTOMAN SUBCODES
+MOTOMAN_SUBCODE_INVALID = 3000
+MOTOMAN_SUBCODE_NOTREADY = 5000
 
 class SimpleMessage(object):
     """
@@ -69,9 +83,23 @@ class SimpleMessage(object):
         self.seq_num = None
         self.data = []
 
+        # Trajectory Point
+        self.velocity = None
+        self.duration = None
+
+        # Trajectory Point Full
+        self.valid_fields = None
+        self.time = None
+        self.positions = []
+        self.velocities = []
+        self.accelerations = []
+
         # Robot Vendor Specific Messages
+        # Yaskawa Motoman
         self.robot_id = None
         self.ctrl_cmd = None
+        self.ctrl_result = None
+        self.subcode = None
 
     def set_header(self, msg_type, comm_type, reply_code):
         """
@@ -103,25 +131,61 @@ class SimpleMessage(object):
     def set_seq_num(self, seq):
         self.seq_num = seq
 
+    # Trajectory
+    def set_velocity(self, value):
+        self.velocity = value
+
+    def set_duration(self, time):
+        self.duration = time
+
+    # Trajectory Full
+    def set_valid_fields(self, value):
+        self.valid_fields = value
+
+    def set_time(self, time):
+        self.time = time
+
+    def assign_positions(self, data_list):
+        self.positions = copy.deepcopy(data_list)
+
+    def assign_velocities(self, data_list):
+        self.velocities = copy.deepcopy(data_list)
+
+    def assign_accelerations(self, data_list):
+        self.accelerations = copy.deepcopy(data_list)
+
+    # Robot Vendor Specific Messages
+    # Yaskawa Motoman
     def set_robot_id(self, value):
         self.robot_id = value
 
     def set_ctrl_cmd(self, value):
         self.ctrl_cmd = value
 
-    def create_empty(self, type):
+    def set_ctrl_result(self, value):
+        self.ctrl_result = value
+
+    def set_subcode(self, value):
+        self.subcode = value
+
+    # Create empty reply message based on type
+    def create_empty(self, msg_type):
         self.msg_type = 0
         self.comm_type = 0
         self.reply_code = 0
         self.seq_num = 0
 
         data_range = 0
-        if type == JOINT_POSITION:
+        if msg_type == JOINT_POSITION:
             data_range = MAX_JOINT_NUM
-        elif type == STATUS:
+        elif msg_type == STATUS:
             data_range = ROBOT_STATUS_DATA
-        elif type == JOINT_TRAJ_PT:
+        elif msg_type == JOINT_TRAJ_PT:
             data_range = MAX_JOINT_NUM + 2  # for velocity and duration
+
+        # Robot Vendor Specific Messages
+        elif msg_type == MOTOMAN_MOTION_REPLY:
+            data_range = MAX_JOINT_NUM
 
         if len(self.data) > 0:
             for i in range(data_range):
@@ -147,6 +211,7 @@ def serialize_messages(b, seq, msg):
     try:
         # msg.serialize(b)
 
+        # ------ HEADER ------
         # Write the MSG_TYPE of the message
         b.write(struct.pack('<I', msg.msg_type))
 
@@ -156,7 +221,8 @@ def serialize_messages(b, seq, msg):
         # Write the REPLY_CODE  of the message
         b.write(struct.pack('<I', msg.reply_code))
 
-        # Write the DATA
+        # ------ BODY ------
+        # Write the DATA on the rest of the message based on message type
         if msg.msg_type == JOINT_POSITION:
             # Sequence Number
             b.write(struct.pack('<I', seq))
@@ -174,6 +240,31 @@ def serialize_messages(b, seq, msg):
             for d in msg.data:
                 b.write(struct.pack('<I', d))
 
+        # ROBOT Vendor Specific Messages
+        elif msg.msg_type == MOTOMAN_MOTION_REPLY:
+            # Robot ID
+            b.write(struct.pack('<I', msg.robot_id))
+
+            # Sequence Number
+            b.write(struct.pack('<I', seq))
+
+            # Command Number
+            b.write(struct.pack('<I', msg.ctrl_cmd))
+
+            # Result Number
+            b.write(struct.pack('<I', msg.ctrl_result))
+
+            # Subcode Number
+            b.write(struct.pack('<I', msg.subcode))
+
+            # Joint Position data in rad
+            for d in msg.data:
+                b.write(struct.pack('<f', d))
+
+            # Fill the remaining unused DOF with zeros
+            for i in range(10-len(msg.data)):
+                b.write(struct.pack('<f', 0))
+
         else:
             # Any message with integer data
             for d in msg.data:
@@ -182,6 +273,7 @@ def serialize_messages(b, seq, msg):
     except struct.error as e:
         raise Exception(e)
 
+    # ------ PREFIX ------
     # write 4-byte packet length on the first 4 bytes
     end = b.tell()
     size = end - start - 4  # do not include LENGTH packet
@@ -253,16 +345,62 @@ def deserialize_messages(b, msg, max_size=68):
 
                     # Joint Position data in rad
                     data = []
-                    for i in range(MAX_JOINT_NUM + 2):
+                    for i in range(MAX_JOINT_NUM):
                         (d,) = struct.unpack('<f', b.read(4))
                         data.append(d)
                         pos += 4
+
+                    # Joint Velocitiy data in rad
+                    (velocity,) = struct.unpack('<f', b.read(4))
+                    pos += 4
+
+                    # Duration
+                    (duration,) = struct.unpack('<f', b.read(4))
+                    pos += 4
 
                 elif msg_type == STATUS:
                     data = []
                     for i in range(ROBOT_STATUS_DATA):
                         (d,) = struct.unpack('<I', b.read(4))
                         data.append(d)
+                        pos += 4
+
+                elif msg_type == JOINT_TRAJ_PT_FULL:
+                    # Robot ID Number
+                    (robot_id,) = struct.unpack('<I', b.read(4))
+                    pos += 4
+
+                    # Sequence Number
+                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    pos += 4
+
+                    # Valid Fields Number
+                    (valid_fields,) = struct.unpack('<I', b.read(4))
+                    pos += 4
+
+                    # Time
+                    (time,) = struct.unpack('<f', b.read(4))
+                    pos += 4
+
+                    # Joint Positions data in rad
+                    data = []
+                    for i in range(MAX_JOINT_NUM):
+                        (d,) = struct.unpack('<f', b.read(4))
+                        data.append(d)
+                        pos += 4
+
+                    # Joint Velocities data in rad
+                    velocities = []
+                    for i in range(MAX_JOINT_NUM):
+                        (d,) = struct.unpack('<f', b.read(4))
+                        velocities.append(d)
+                        pos += 4
+
+                    # Joint Accelerations data in rad
+                    accelerations = []
+                    for i in range(MAX_JOINT_NUM):
+                        (d,) = struct.unpack('<f', b.read(4))
+                        accelerations.append(d)
                         pos += 4
 
                 # ROBOT Vendor Specific Messages
@@ -298,8 +436,21 @@ def deserialize_messages(b, msg, max_size=68):
                 msg.assign_data(data)
 
                 # Set sequence number on message with seq_num
-                if msg_type == JOINT_POSITION or msg_type == JOINT_TRAJ_PT:
+                if msg_type == JOINT_POSITION:
                     msg.set_seq_num(seq_num)
+
+                elif msg_type == JOINT_TRAJ_PT:
+                    msg.set_seq_num(seq_num)
+                    msg.set_velocity(velocity)
+                    msg.set_duration(duration)
+
+                elif msg_type == JOINT_TRAJ_PT_FULL:
+                    msg.set_robot_id(robot_id)
+                    msg.set_seq_num(seq_num)
+                    msg.set_valid_fields(valid_fields)
+                    msg.set_time(time)
+                    msg.assign_velocities(velocities)
+                    msg.assign_accelerations(accelerations)
 
                 # ROBOT Vendor Specific Messages
                 elif msg_type == MOTOMAN_MOTION_CTRL:

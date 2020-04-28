@@ -42,9 +42,6 @@ class JointStreamerServer (MessageServer):
         # create incoming packet and out coming packet
         joint_stream_message = SimpleMessage()
         reply_message = SimpleMessage()
-        # reply with JOINT_POSITION packets
-        reply_message.create_empty(JOINT_POSITION)
-        reply_message.set_header(JOINT_POSITION, RESPONSE, SUCCESS)
 
         while socket_connected:
             # Receive the packet
@@ -53,36 +50,128 @@ class JointStreamerServer (MessageServer):
                 break
 
             if message_ready:
-                # print("Got joint stream:")
-                # print_str = ''
-                # print_str += "[%d " % joint_stream_message.msg_type
-                # print_str += "%d %d] " % (joint_stream_message.comm_type, joint_stream_message.reply_code)
-                # for d in joint_stream_message.data:
-                #     print_str += "%.2f, " % d
-                # print(print_str, end="\t")
-                # print("")
-
                 # Default General Robot
-                if joint_stream_message.msg_type == JOINT_POSITION or joint_stream_message.msg_type == JOINT_TRAJ_PT:
+                if joint_stream_message.msg_type == JOINT_POSITION or joint_stream_message.msg_type == JOINT_TRAJ_PT \
+                        or joint_stream_message.msg_type == JOINT_TRAJ_PT_FULL:
+                    # print_str = ''
+                    # print_str += "[%d " % joint_stream_message.msg_type
+                    # print_str += "%d %d] " % (joint_stream_message.comm_type, joint_stream_message.reply_code)
+                    # print_str += "[%d] " % joint_stream_message.seq_num
+                    #
+                    # if joint_stream_message.msg_type == JOINT_TRAJ_PT_FULL:
+                    #     print_str += "[%d %d %.2f] " % (joint_stream_message.robot_id, joint_stream_message.valid_fields, joint_stream_message.time)
+                    #
+                    # print_str += "["
+                    # for i, d in enumerate(joint_stream_message.data):
+                    #     print_str += "%.2f" % d
+                    #     if i+1 < len(joint_stream_message.data):
+                    #         print_str += ", "
+                    #     else:
+                    #         print_str += "] "
+                    #
+                    # # Trajectory Point
+                    # if joint_stream_message.msg_type == JOINT_TRAJ_PT:
+                    #     print_str += "[%.2f] " % joint_stream_message.velocity
+                    #     print_str += "[%.2f] " % joint_stream_message.duration
+                    # # Trajectory Point Full
+                    # elif joint_stream_message.msg_type == JOINT_TRAJ_PT_FULL:
+                    #     print_str += "["
+                    #     for i, d in enumerate(joint_stream_message.velocities):
+                    #         print_str += "%.2f" % d
+                    #         if i+1 < len(joint_stream_message.velocities):
+                    #             print_str += ", "
+                    #         else:
+                    #             print_str += "] "
+                    #     print_str += "["
+                    #     for i, d in enumerate(joint_stream_message.accelerations):
+                    #         print_str += "%.2f" % d
+                    #         if i+1 < len(joint_stream_message.accelerations):
+                    #             print_str += ", "
+                    #         else:
+                    #             print_str += "] "
+                    # print(print_str, end="\t")
+                    # print("")
+
                     # Check sequence number
                     if joint_stream_message.seq_num >= 0:
-                        # Request new trajectory node
-                        reply_message.set_seq_num(joint_stream_message.seq_num)
-                        reply_message.set_reply_code(SUCCESS)
+                        # Create reply based on the ROBOT
+                        if self.port == 11000:
+                            # Reply with JOINT_POSITION packets
+                            reply_message.create_empty(JOINT_POSITION)
+                            reply_message.set_header(JOINT_POSITION, RESPONSE, SUCCESS)
 
-                        write_messages(BytesIO(), sock, reply_message)
+                            # Request new trajectory node
+                            reply_message.set_seq_num(joint_stream_message.seq_num)
+
+                        elif self.port == 50240:
+                            # Reply with JOINT_POSITION packets
+                            reply_message.create_empty(MOTOMAN_MOTION_REPLY)
+                            reply_message.set_header(MOTOMAN_MOTION_REPLY, RESPONSE, SUCCESS)
+
+                            # Request new trajectory node
+                            reply_message.set_seq_num(joint_stream_message.seq_num)
+
+
+                        # Serialize + sending message
+                        socket_connected = write_messages(BytesIO(), sock, reply_message)
 
                         # Execute the motion
                         self._handle_command(joint_stream_message)
 
                 # Yaskawa Motoman
                 elif joint_stream_message.msg_type == MOTOMAN_MOTION_CTRL:
+                    # print_str = 'Got joint stream: '
+                    # print_str += "[%d " % joint_stream_message.msg_type
+                    # print_str += "%d %d] " % (joint_stream_message.comm_type, joint_stream_message.reply_code)
+                    # print_str += "[%d %d] " % (joint_stream_message.robot_id, joint_stream_message.seq_num)
+                    # print_str += "[%d] " % joint_stream_message.ctrl_cmd
+                    # for d in joint_stream_message.data:
+                    #     print_str += "%.2f, " % d
+                    # print(print_str, end="\t")
+                    # print("")
+
                     # Check the command
                     command = joint_stream_message.ctrl_cmd
-                    if command == MOTOMAN_CMD_STOP_MOTION or command == MOTOMAN_CMD_STOP_TRAJ_MODE:
-                        # Disconnect the connection on stopping motion
-                        print("Stopping joint trajectory streaming")
-                        socket_connected = False
+                    # if command == MOTOMAN_CMD_STOP_TRAJ_MODE:
+                    #     # Disconnect the connection on stopping trajectory mode
+                    #     print("Stopping joint trajectory streaming")
+                    #     socket_connected = False
+                    #
+                    # else:
+                    if True:
+
+                        if command == MOTOMAN_CMD_CHECK_MOTION_READY:
+                            print("Check Trajectory Mode")
+
+                        elif command == MOTOMAN_CMD_START_TRAJ_MODE:
+                            print("Start Trajectory Mode")
+                            if self.controller:
+                                self.controller.set_robot_motion_possible()
+
+                        elif command == MOTOMAN_CMD_STOP_MOTION:
+                            print("Stop Motion")
+                            # if self.controller:
+                            #     self.controller.stop_motion()
+                        elif command == MOTOMAN_CMD_STOP_TRAJ_MODE:
+                            print("Stop Trajectory Mode")
+                            if self.controller:
+                                self.controller.set_robot_motion_possible(value=False)
+
+                        # Reply with MOTOMAN_MOTION_REPLY packets
+                        reply_message.create_empty(MOTOMAN_MOTION_REPLY)
+                        reply_message.set_header(MOTOMAN_MOTION_REPLY, RESPONSE, SUCCESS)
+
+                        # Copy the details to the reply message
+                        reply_message.set_robot_id(joint_stream_message.robot_id)
+                        reply_message.set_seq_num(joint_stream_message.seq_num)
+                        reply_message.set_ctrl_cmd(joint_stream_message.ctrl_cmd)
+
+                        # Set result
+                        reply_message.set_ctrl_result(MOTOMAN_CMD_SUCCESS)
+                        reply_message.set_subcode(0)
+
+                        # Serialize + sending message
+                        socket_connected = write_messages(BytesIO(), sock, reply_message)
 
     def _handle_command(self, stream_message):
         """

@@ -10,6 +10,9 @@ import time
 import queue as Queue
 from math import degrees
 
+MIN_VELOCITY = 0.05
+MIN_DURATION = 0.1
+
 
 class JointTrajectoryPt(object):
     """
@@ -23,19 +26,27 @@ class JointTrajectoryPt(object):
         self.positions = []
         for i in range(joint_num):
             self.positions.append(None)
-        self.velocities = 0
-        self.accelerations = 0
-        self.effort = 0
+
+        # Trajectory Point
+        self.velocity = 0
         self.duration = 0
+
+        # Trajectory Point Full
+        self.velocities = []
+        self.accelerations = []
+        self.effort = 0
 
     def set_positions(self, pos):
         self.positions = pos[:]
 
-    def set_velocities(self, vel):
-        self.velocities = vel
+    def set_velocity(self, vel):
+        self.velocity = vel
 
-    def set_accelerations(self, acc):
-        self.accelerations = acc
+    def set_velocities(self, vel_list):
+        self.velocities = copy.deepcopy(vel_list)
+
+    def set_accelerations(self, acc_list):
+        self.accelerations = copy.deepcopy(acc_list)
 
     def set_effort(self, effort):
         self.effort = effort
@@ -69,7 +80,7 @@ class MotionController:
 
         # Initialize Joint Positions
         self.joint_positions = initial_joint_pos
-        self.joint_velocities = 0
+        self.joint_velocity = 0
         self.home_position = home_pos
 
         self.robot_servo = robot_servo
@@ -98,14 +109,34 @@ class MotionController:
         set_angle = list(map(degrees, point_message.data[:10]))
         way_point = JointTrajectoryPt(len(set_angle))
         way_point.set_positions(set_angle)
-        way_point.set_velocities(point_message.data[10])
-        way_point.set_duration(point_message.data[11])
+
+        # Trajectory Point
+        if point_message.velocity:
+            way_point.set_velocity(point_message.velocity)
+        if point_message.duration:
+            way_point.set_duration(point_message.duration)
+
+        # Trajectory Point Full
+        if point_message.velocities:
+            # FIXME: For now only add the first
+            way_point.set_velocity(point_message.velocities[0])
+            if way_point.velocity < MIN_VELOCITY:
+                way_point.set_velocity(MIN_VELOCITY)
+        if point_message.time:
+            way_point.set_duration(point_message.time)
+            if way_point.duration < MIN_DURATION:
+                way_point.set_duration(MIN_DURATION)
 
         print_str = 'WAYPOINT: '
+        print_str += "["
         for d in range(len(way_point.positions)):
-            print_str += "%d, " % way_point.positions[d]
-        print_str += "%.2f, " % way_point.velocities
-        print_str += "%.2f, " % way_point.duration
+            print_str += "%d" % way_point.positions[d]
+            if d+1 < len(way_point.positions):
+                print_str += ", "
+            else:
+                print_str += "] "
+        print_str += "[%.2f, " % way_point.velocity
+        print_str += "%.2f]" % way_point.duration
         print(print_str)
         self.motion_buffer.put(way_point)
 
@@ -173,15 +204,15 @@ class MotionController:
         for i in range(len(self.joint_positions)):
             dt = delta_time
             dx = goal_point.positions[i] - start_point.positions[i]
-            dv = goal_point.velocities   + start_point.velocities
-            a1 = start_point.velocities / dt
-            a2 =  3*(dx/pow(dt,2)) - (dv + start_point.velocities)/pow(dt,2)
+            dv = goal_point.velocity + start_point.velocity
+            a1 = start_point.velocity / dt
+            a2 =  3*(dx/pow(dt,2)) - (dv + start_point.velocity)/pow(dt,2)
             a3 = -2*(dx/pow(dt,3)) + dv/pow(dt,3)
 
             xi = start_point.positions + a1*time_inter + a2*pow(time_inter,2) + a3*pow(time_inter,3)
             inter_pt.positions[i] = xi
         inter_pt.duration = time_inter
-        inter_pt.velocities = goal_point.velocities
+        inter_pt.velocity = goal_point.velocity
         return inter_pt
 
     def _move_to(self, goal_point, move_duration):
@@ -202,7 +233,7 @@ class MotionController:
                     if self.robot_servo:
                         self.robot_servo[i].setAngle(goal_point.positions[i])
                     self.joint_positions[i] = goal_point.positions[i]
-                self.joint_velocities = goal_point.velocities
+                self.joint_velocity = goal_point.velocity
 
                 # Update current joint positions, since there is no sensors
                 # self.joint_positions = goal_point.positions[:]
@@ -220,7 +251,7 @@ class MotionController:
         while not self.sig_shutdown:
             try:
                 last_goal_point.set_positions(self.joint_positions)
-                last_goal_point.set_velocities(self.joint_velocities)
+                last_goal_point.set_velocity(self.joint_velocity)
                 current_goal_point = self.motion_buffer.get()
 
                 # Updating with current joint positions
@@ -234,8 +265,8 @@ class MotionController:
                     # move during goal duration
                     while self.update_duration < goal_duration:
 
-                        # Do liner interpolation if no velocities
-                        # if last_goal_point.velocities == 0 or current_goal_point.velocities == 0:
+                        # Do liner interpolation if no velocity
+                        # if last_goal_point.velocity == 0 or current_goal_point.velocity == 0:
                         intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
                         #     print("ALPHA %f" % (self.update_duration/goal_duration))
                         #
@@ -246,7 +277,7 @@ class MotionController:
                         # print_str = 'INTER: '
                         # for d in range(len(intermediate_point.positions)):
                         #     print_str += "%d, " % intermediate_point.positions[d]
-                        # print_str += "%.2f, " % intermediate_point.velocities
+                        # print_str += "%.2f, " % intermediate_point.velocity
                         # print_str += "%.2f, " % intermediate_point.duration
                         # print(print_str)
 
@@ -272,7 +303,7 @@ class MotionController:
         """
         home_pt = JointTrajectoryPt(len(self.home_position))
         home_pt.set_positions(self.home_position)
-        home_pt.set_velocities(0)
+        home_pt.set_velocity(0)
         home_pt.set_duration(0)
         self._move_to(home_pt, home_pt.duration)
 
