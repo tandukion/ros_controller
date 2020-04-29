@@ -50,9 +50,20 @@ class JointStreamerServer (MessageServer):
                 break
 
             if message_ready:
+                # print_str = ''
+                # print_str += "[%d " % joint_stream_message.msg_type
+                # print_str += "%d %d] " % (joint_stream_message.comm_type, joint_stream_message.reply_code)
+                # print(print_str, end="\t")
+                # print("")
+
                 # Default General Robot
                 if joint_stream_message.msg_type == JOINT_POSITION or joint_stream_message.msg_type == JOINT_TRAJ_PT \
                         or joint_stream_message.msg_type == JOINT_TRAJ_PT_FULL:
+
+                    # Negative seq_num means disconnecting
+                    if joint_stream_message.seq_num < 0:
+                        break
+
                     # print_str = ''
                     # print_str += "[%d " % joint_stream_message.msg_type
                     # print_str += "%d %d] " % (joint_stream_message.comm_type, joint_stream_message.reply_code)

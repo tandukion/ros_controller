@@ -52,8 +52,8 @@ def read_messages(b, sock, buff_size, msg):
         except socket.timeout:
             break
         except socket.error as e:
-            sockname = sock.getsockname()
-            print("Socket %s:%d error. " % (sockname[0], sockname[1]), e)
+            # sockname = sock.getsockname()
+            # print("[%d] Socket error. " % sockname[1], e)
             socket_status = False
             break
 
@@ -90,8 +90,8 @@ def write_messages(b, sock, msg, seq=0):
         sock.sendall(b.getvalue())
     except socket.error as e:
         # raise Exception(e)
-        sockname = sock.getsockname()
-        print("Socket %s:%d error. " % (sockname[0], sockname[1]), e)
+        # sockname = sock.getsockname()
+        # print("[%d] Socket error. " % sockname[1], e)
         write_success = False
 
     # clearing buffer
@@ -188,6 +188,7 @@ class ServerSocket(object):
         self.port = port
         self.addr = ''
         self.is_shutdown = False
+        self.is_connected = False
         self.inbound_handler = inbound_handler
 
         # Creating server socket
@@ -210,6 +211,15 @@ class ServerSocket(object):
         t.setDaemon(True)
         t.start()
 
+    def close_socket(self):
+        """ Close the client socket connection """
+        self.client_sock.close()
+        self.is_shutdown = True
+
+    def restart_server(self):
+        """ Restart the thread """
+        self.start()
+
     def run(self):
         """
         Main TCP receive loop. Use start() to do this automatically.
@@ -220,7 +230,7 @@ class ServerSocket(object):
         while not self.is_shutdown:
             try:
                 print('[%d] Waiting for connection' % self.port)
-                (client_sock, client_addr) = self.server_sock.accept()
+                (self.client_sock, client_addr) = self.server_sock.accept()
             except socket.timeout:
                 print('socket timeout')
                 continue
@@ -229,10 +239,18 @@ class ServerSocket(object):
                 (errno, msg) = e.args
                 if errno == 4:  # interrupted system call
                     continue
-                raise
+                break
 
+            # Set flag for started connection
+            self.is_connected = True
             print('[%d]' % self.port + ' Connected with ' + client_addr[0] + ':' + str(client_addr[1]))
 
             # leave threading decisions up to inbound_handler
             # print('Running connection handler')
-            self.inbound_handler(client_sock)
+            self.inbound_handler(self.client_sock)
+
+            # Set flag for disconnected client after returning from inbound_handler
+            # Returning means socket error and client is disconnected
+            # print('[%d] Disconnected' % self.port)
+            self.is_connected = False
+            self.is_shutdown = True

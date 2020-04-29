@@ -74,7 +74,17 @@ class RobotLogicController:
         # Start State Machine
         self._state_machine = RobotStateMachine(model=self)
 
-        # Create Communication Server
+        # Start Communication Server
+        self.server_shutdown = False
+        self.servers = []
+        self.start_servers()
+
+        self.trig_initialized()
+
+    def start_servers(self):
+        """
+        Start the servers to receive any Simple Message
+        """
         self.joint_streamer_server = JointStreamerServer(controller=self, port=JOINT_STREAM_PORT)
         # self.joint_streamer_server = JointStreamerServer(controller=self, port=MOTOMAN_JOINT_STREAM_PORT)
         self.joint_streamer_server.start_server()
@@ -85,7 +95,38 @@ class RobotLogicController:
         # self.io_interface_server = IoInterfaceServer(controller=self, port=MOTOMAN_IO_INTERFACE_PORT)
         self.io_interface_server.start_server()
 
-        self.trig_initialized()
+        self.servers.append(self.joint_streamer_server)
+        self.servers.append(self.robot_state_server)
+        self.servers.append(self.io_interface_server)
+
+        # Start thread for controlling the servers
+        t = threading.Thread(target=self.server_controller, args=())
+        t.setDaemon(True)
+        t.start()
+
+    def server_controller(self):
+        """
+        Control the connection of the servers
+        """
+        while not self.server_shutdown:
+            client_disconnected = False
+            # Check if any server is disconnected from its client.
+            for server in self.servers:
+                if server.server.is_shutdown:
+                    client_disconnected = True
+                    break
+
+            #  Restart any server connected which is still not disconnected
+            if client_disconnected:
+                for server in self.servers:
+                    # Close socket if it still connected
+                    # Usually blocked by socket.recv() even if the client is already disconnected
+                    if server.server.is_connected:
+                        server.server.close_socket()
+
+                    # Restart any shutdown server
+                    if server.server.is_shutdown:
+                        server.server.restart_server()
 
     """
     State callback handlers
