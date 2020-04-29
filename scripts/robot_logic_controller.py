@@ -20,10 +20,6 @@ from scripts.ros_comm.robot_state_server import RobotStateServer
 from scripts.ros_comm.io_interface_server import IoInterfaceServer
 from scripts.motion_controller.motion_controller import *
 
-# dummy
-joint_pos_dummy = [0, 0, 0, 0, 0, 0]
-robot_status_dummy = [1, 0, 0, 0, 0, 1, 0]
-
 # CONFIG
 ROBOT_DOF = 6
 # HOME_POSITION = [0, 30, 0, 0, 30, 0]
@@ -39,7 +35,13 @@ MOTOMAN_IO_INTERFACE_PORT = 50242
 
 
 class RobotLogicController:
-    def __init__(self, sim=False):
+    def __init__(self, sim=False, robot="default"):
+        """
+        Robot Controller which handles the communication and the motion.
+
+        :param sim: Run on simulation or real robot
+        :param robot: Type of the robot. Pre-defined robot type name: ["default", "yaskawa", "motoman"]
+        """
         # Create Robot Servo
         if not sim:
             i2c = busio.I2C(SCL, SDA)
@@ -52,7 +54,6 @@ class RobotLogicController:
 
         # TODO: make joint position, robot state class
         # Create Motion Controller for Joint Position
-        # self.joint_pos = copy.deepcopy(joint_pos_dummy)
         self.joint_names = JOINT_NAMES
         initial_joint_pos = [0]*len(self.joint_names)
         self.joint_pos = initial_joint_pos
@@ -64,7 +65,6 @@ class RobotLogicController:
             self.motion_controller = MotionController(initial_joint_pos, self.home_pos)
 
         # Create Robot Status class
-        # self.robot_status = copy.deepcopy(robot_status_dummy)
         self.goal_joint_pos = []
         for i in range(ROBOT_DOF):
             self.goal_joint_pos.append(0)
@@ -77,22 +77,25 @@ class RobotLogicController:
         # Start Communication Server
         self.server_shutdown = False
         self.servers = []
-        self.start_servers()
 
-        self.trig_initialized()
+        # Assign the port based on the robot
+        joint_port = 0
+        state_port = 0
+        io_port = 0
+        if robot == "default":
+            joint_port = JOINT_STREAM_PORT
+            state_port = ROBOT_STATE_PORT
+            io_port = IO_INTERFACE_PORT
+        elif robot == "yaskawa" or robot == "motoman":
+            joint_port = MOTOMAN_JOINT_STREAM_PORT
+            state_port = MOTOMAN_ROBOT_STATE_PORT
+            io_port = MOTOMAN_IO_INTERFACE_PORT
 
-    def start_servers(self):
-        """
-        Start the servers to receive any Simple Message
-        """
-        self.joint_streamer_server = JointStreamerServer(controller=self, port=JOINT_STREAM_PORT)
-        # self.joint_streamer_server = JointStreamerServer(controller=self, port=MOTOMAN_JOINT_STREAM_PORT)
+        self.joint_streamer_server = JointStreamerServer(controller=self, port=joint_port)
         self.joint_streamer_server.start_server()
-        self.robot_state_server = RobotStateServer(controller=self, port=ROBOT_STATE_PORT)
-        # self.robot_state_server = RobotStateServer(controller=self, port=MOTOMAN_ROBOT_STATE_PORT)
+        self.robot_state_server = RobotStateServer(controller=self, port=state_port)
         self.robot_state_server.start_server()
-        self.io_interface_server = IoInterfaceServer(controller=self, port=IO_INTERFACE_PORT)
-        # self.io_interface_server = IoInterfaceServer(controller=self, port=MOTOMAN_IO_INTERFACE_PORT)
+        self.io_interface_server = IoInterfaceServer(controller=self, port=io_port)
         self.io_interface_server.start_server()
 
         self.servers.append(self.joint_streamer_server)
@@ -103,6 +106,8 @@ class RobotLogicController:
         t = threading.Thread(target=self.server_controller, args=())
         t.setDaemon(True)
         t.start()
+
+        self.trig_initialized()
 
     def server_controller(self):
         """
@@ -198,6 +203,11 @@ class RobotLogicController:
         self.motion_controller.stop()
 
     def move_robot(self, stream_message):
+        """
+        Move the robot based on the joint stream message
+
+        :param stream_message: Joint Stream message containing the sequence and the trajectory
+        """
         # for i in range(ROBOT_DOF):
         #     self.goal_joint_pos[i] = goal_angle[i]
 
