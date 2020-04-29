@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pythonWAYPOINT
 #
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
@@ -213,19 +213,19 @@ def serialize_messages(b, seq, msg):
 
         # ------ HEADER ------
         # Write the MSG_TYPE of the message
-        b.write(struct.pack('<I', msg.msg_type))
+        b.write(struct.pack('<i', msg.msg_type))
 
         # Write the COMM_TYPE  of the message
-        b.write(struct.pack('<I', msg.comm_type))
+        b.write(struct.pack('<i', msg.comm_type))
 
         # Write the REPLY_CODE  of the message
-        b.write(struct.pack('<I', msg.reply_code))
+        b.write(struct.pack('<i', msg.reply_code))
 
         # ------ BODY ------
         # Write the DATA on the rest of the message based on message type
         if msg.msg_type == JOINT_POSITION:
             # Sequence Number
-            b.write(struct.pack('<I', seq))
+            b.write(struct.pack('<i', seq))
 
             # Joint Position data in rad
             for d in msg.data:
@@ -238,24 +238,24 @@ def serialize_messages(b, seq, msg):
         elif msg.msg_type == STATUS:
             # Robot Status
             for d in msg.data:
-                b.write(struct.pack('<I', d))
+                b.write(struct.pack('<i', d))
 
         # ROBOT Vendor Specific Messages
         elif msg.msg_type == MOTOMAN_MOTION_REPLY:
             # Robot ID
-            b.write(struct.pack('<I', msg.robot_id))
+            b.write(struct.pack('<i', msg.robot_id))
 
             # Sequence Number
-            b.write(struct.pack('<I', seq))
+            b.write(struct.pack('<i', seq))
 
             # Command Number
-            b.write(struct.pack('<I', msg.ctrl_cmd))
+            b.write(struct.pack('<i', msg.ctrl_cmd))
 
             # Result Number
-            b.write(struct.pack('<I', msg.ctrl_result))
+            b.write(struct.pack('<i', msg.ctrl_result))
 
             # Subcode Number
-            b.write(struct.pack('<I', msg.subcode))
+            b.write(struct.pack('<i', msg.subcode))
 
             # Joint Position data in rad
             for d in msg.data:
@@ -268,7 +268,7 @@ def serialize_messages(b, seq, msg):
         else:
             # Any message with integer data
             for d in msg.data:
-                b.write(struct.pack('<I', d))
+                b.write(struct.pack('<i', d))
 
     except struct.error as e:
         raise Exception(e)
@@ -278,7 +278,7 @@ def serialize_messages(b, seq, msg):
     end = b.tell()
     size = end - start - 4  # do not include LENGTH packet
     b.seek(start)
-    b.write(struct.pack('<I', size))
+    b.write(struct.pack('<i', size))
     b.seek(end)
 
 
@@ -305,30 +305,30 @@ def deserialize_messages(b, msg, max_size=68):
 
             # ------ PREFIX ------
             # Read the LENGTH of the message
-            (message_length,) = struct.unpack('<I', b.read(4))
+            (message_length,) = struct.unpack('<i', b.read(4))
             pos += 4
 
             if message_length > 1:
                 # ------ HEADER ------
                 # Read the MSG_TYPE of the message
-                (msg_type,) = struct.unpack('<I', b.read(4))
+                (msg_type,) = struct.unpack('<i', b.read(4))
                 pos += 4
 
                 # print("btell: ", btell, "LENGTH: ", message_length, "\t MSG_TYPE: ", msg_type)
 
                 # Read the COMM_TYPE  of the message
-                (comm_type,) = struct.unpack('<I', b.read(4))
+                (comm_type,) = struct.unpack('<i', b.read(4))
                 pos += 4
 
                 # Read the REPLY_CODE  of the message
-                (reply_code,) = struct.unpack('<I', b.read(4))
+                (reply_code,) = struct.unpack('<i', b.read(4))
                 pos += 4
 
                 # ------ BODY ------
                 # Read the DATA on the rest of the message based on message type
                 if msg_type == JOINT_POSITION:
                     # Sequence Number
-                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    (seq_num,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Joint Position data in rad
@@ -340,7 +340,7 @@ def deserialize_messages(b, msg, max_size=68):
 
                 elif msg_type == JOINT_TRAJ_PT:
                     # Sequence Number
-                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    (seq_num,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Joint Position data in rad
@@ -361,21 +361,21 @@ def deserialize_messages(b, msg, max_size=68):
                 elif msg_type == STATUS:
                     data = []
                     for i in range(ROBOT_STATUS_DATA):
-                        (d,) = struct.unpack('<I', b.read(4))
+                        (d,) = struct.unpack('<i', b.read(4))
                         data.append(d)
                         pos += 4
 
                 elif msg_type == JOINT_TRAJ_PT_FULL:
                     # Robot ID Number
-                    (robot_id,) = struct.unpack('<I', b.read(4))
+                    (robot_id,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Sequence Number
-                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    (seq_num,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Valid Fields Number
-                    (valid_fields,) = struct.unpack('<I', b.read(4))
+                    (valid_fields,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Time
@@ -406,15 +406,15 @@ def deserialize_messages(b, msg, max_size=68):
                 # ROBOT Vendor Specific Messages
                 elif msg_type == MOTOMAN_MOTION_CTRL:
                     # Robot ID Number
-                    (robot_id,) = struct.unpack('<I', b.read(4))
+                    (robot_id,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Sequence Number
-                    (seq_num,) = struct.unpack('<I', b.read(4))
+                    (seq_num,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Control Command Number
-                    (ctrl_cmd,) = struct.unpack('<I', b.read(4))
+                    (ctrl_cmd,) = struct.unpack('<i', b.read(4))
                     pos += 4
 
                     # Joint Position data in rad
@@ -428,7 +428,7 @@ def deserialize_messages(b, msg, max_size=68):
                 else:
                     data = []
                     while pos < btell and pos < max_size:
-                        (d,) = struct.unpack('<I', b.read(4))
+                        (d,) = struct.unpack('<i', b.read(4))
                         data.append(d)
                         pos += 4
 
