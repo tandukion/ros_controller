@@ -60,7 +60,7 @@ class MotionController:
     Class that controls the robot motion.
     Trajectory points use JointTrajectoryPt class.
     """
-    def __init__(self, initial_joint_pos, home_pos, robot_servo=None, update_rate=100, buff_size=0):
+    def __init__(self, initial_joint_pos, home_pos, robot_servo=None, update_rate=20, buff_size=0):
         """
         :param initial_joint_pos: initial joint positions after initialization
         :type  initial_joint_pos: list of float
@@ -190,6 +190,25 @@ class MotionController:
             inter_pt.velocities[i] = goal_point.velocities[i]
 
         inter_pt.duration = alpha*(goal_point.duration - start_point.duration)
+
+        # print_str = 'INTER: '
+        # print_str += "["
+        # for d in range(len(inter_pt.positions)):
+        #     print_str += "%d" % inter_pt.positions[d]
+        #     if d+1 < len(inter_pt.positions):
+        #         print_str += ", "
+        #     else:
+        #         print_str += "] "
+        # print_str += "["
+        # for v in range(len(inter_pt.velocities)):
+        #     print_str += "%.2f" % inter_pt.velocities[v]
+        #     if v+1 < len(inter_pt.velocities):
+        #         print_str += ", "
+        #     else:
+        #         print_str += "] "
+        # print_str += "[%.2f]" % inter_pt.duration
+        # print(print_str)
+
         return inter_pt
 
     def cubic_interpolate(self, start_point, goal_point, time_inter, delta_time):
@@ -221,13 +240,32 @@ class MotionController:
             a2 =  3*(dx/pow(dt,2)) - (dv + start_point.velocities[i])/pow(dt,2)
             a3 = -2*(dx/pow(dt,3)) + dv/pow(dt,3)
 
-            xi = start_point.positions + a1*time_inter + a2*pow(time_inter,2) + a3*pow(time_inter,3)
+            xi = start_point.positions[i] + a1*time_inter + a2*pow(time_inter,2) + a3*pow(time_inter,3)
             inter_pt.positions[i] = xi
 
             # Copy the velocities as it is
             inter_pt.velocities[i] = goal_point.velocities[i]
 
         inter_pt.duration = time_inter
+
+        # print_str = 'INTER: '
+        # print_str += "["
+        # for d in range(len(inter_pt.positions)):
+        #     print_str += "%d" % inter_pt.positions[d]
+        #     if d+1 < len(inter_pt.positions):
+        #         print_str += ", "
+        #     else:
+        #         print_str += "] "
+        # print_str += "["
+        # for v in range(len(inter_pt.velocities)):
+        #     print_str += "%.2f" % inter_pt.velocities[v]
+        #     if v+1 < len(inter_pt.velocities):
+        #         print_str += ", "
+        #     else:
+        #         print_str += "] "
+        # print_str += "[%.2f]" % inter_pt.duration
+        # print(print_str)
+
         return inter_pt
 
     def _move_to(self, goal_point, move_duration):
@@ -278,34 +316,20 @@ class MotionController:
                     goal_duration = current_goal_point.duration
 
                     # move during goal duration
+                    # Do interpolation if goal_duration is larger than the move duration
                     while self.update_duration < goal_duration:
 
                         # Do liner interpolation if no velocities
                         # if last_goal_point.velocities == 0 or current_goal_point.velocities == 0:
-                        intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
+                        if 0.0 in last_goal_point.velocities or 0.0 in current_goal_point.velocities:
+                            # print("Do simple interpolation")
+                            intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
                         #     print("ALPHA %f" % (self.update_duration/goal_duration))
                         #
                         # # or do cubic interpolation
-                        # else:
-                        #     intermediate_point = self.cubic_interpolate(last_goal_point, current_goal_point, self.update_duration, goal_duration)
-
-                        # print_str = 'INTER: '
-                        # print_str += "["
-                        # for d in range(len(intermediate_point.positions)):
-                        #     print_str += "%d" % intermediate_point.positions[d]
-                        #     if d+1 < len(intermediate_point.positions):
-                        #         print_str += ", "
-                        #     else:
-                        #         print_str += "] "
-                        # print_str += "["
-                        # for v in range(len(intermediate_point.velocities)):
-                        #     print_str += "%.2f" % intermediate_point.velocities[v]
-                        #     if v+1 < len(intermediate_point.velocities):
-                        #         print_str += ", "
-                        #     else:
-                        #         print_str += "] "
-                        # print_str += "[%.2f]" % intermediate_point.duration
-                        # print(print_str)
+                        else:
+                            # print("Do cubic interpolation")
+                            intermediate_point = self.cubic_interpolate(last_goal_point, current_goal_point, self.update_duration, goal_duration)
 
                         # Move to intermediate point
                         self._move_to(intermediate_point, intermediate_point.duration)
@@ -317,6 +341,7 @@ class MotionController:
                         # print("Move duration %f" % goal_duration)
 
                 # Handling the last point when goal duration already <= 0
+                # or move directly without interpolating
                 self._move_to(current_goal_point, goal_duration)
                 # print("Move duration %f" % goal_duration)
 
