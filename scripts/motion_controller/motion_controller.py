@@ -29,7 +29,7 @@ class JointTrajectoryPt(object):
 
         # Trajectory Point
         self.velocity = 0
-        self.duration = 0
+        self.duration = 0  # time_from_start
 
         # Trajectory Point Full
         self.velocities = [0.0] * joint_num
@@ -60,23 +60,26 @@ class MotionController:
     Class that controls the robot motion.
     Trajectory points use JointTrajectoryPt class.
     """
-    def __init__(self, initial_joint_pos, home_pos, robot_servo=None, update_rate=20, buff_size=0):
+    def __init__(self, initial_joint_pos, home_pos, robot_servo=None, duration_limit=1, buff_size=0):
         """
         :param initial_joint_pos: initial joint positions after initialization
         :type  initial_joint_pos: list of float
         :param robot_servo: Robot servos
         :type  robot_servo: list of RobotServo
-        :param update_rate: moving rate (Hz)
+        :param duration_limit: maximum motion duration for a single way point (in seconds).
+        :param duration_limit: float
         :param buff_size: max size for motion buffer
         """
         # Class lock
         from math import degrees, radians
         self.lock = threading.Lock()
 
-        # Motion loop update rate (higher update rates result in smoother simulated motion)
-        self.update_rate = update_rate
-        if self.update_rate != 0.:
-            self.update_duration = 1/update_rate
+        # Motion duration limit. Any motion with duration bigger than duration_limit will trigger interpolation.
+        # FIXME: large duration limit is good for simulation, but need to confirm with real robot
+        self.duration_limit = duration_limit
+
+        # Time flag for motion
+        self.start_move_time = 0
 
         # Initialize Joint Positions
         self.joint_positions = initial_joint_pos
@@ -274,10 +277,8 @@ class MotionController:
         :param goal_point: target goal point
         :type  goal_point: JointTrajectoryPt
         :param move_duration: duration to move to target goal point
-        :type  move_duration: JointTrajectoryPt
+        :type  move_duration: float
         """
-        if move_duration >= 0:
-            time.sleep(move_duration)
 
         with self.lock:
             # Move the motors
@@ -288,8 +289,12 @@ class MotionController:
                     self.joint_positions[i] = goal_point.positions[i]
                     self.joint_velocities[i] = goal_point.velocities[i]
 
-                # Update current joint positions, since there is no sensors
-                # self.joint_positions = goal_point.positions[:]
+                # Check move duration
+                elapsed_time = time.time() - self.start_move_time
+                if elapsed_time < move_duration:
+                    # print("Sleep %.2f" % (move_duration-elapsed_time))
+                    # time.sleep(move_duration-elapsed_time)
+                    pass
             else:
                 print('Stopping motion immediately, clearing stop signal')
                 self.sig_stop = False
@@ -306,30 +311,31 @@ class MotionController:
                 last_goal_point.set_positions(self.joint_positions)
                 last_goal_point.set_velocities(self.joint_velocities)
                 current_goal_point = self.motion_buffer.get()
+                goal_duration = current_goal_point.duration
+
+                self.start_move_time = time.time()
 
                 # Updating with current joint positions
                 with self.lock:
                     last_goal_point.set_positions(self.joint_positions)
 
                 # if we set update rate/duration
-                if self.update_duration > 0:
-                    goal_duration = current_goal_point.duration
-
+                if self.duration_limit > 0:
                     # move during goal duration
                     # Do interpolation if goal_duration is larger than the move duration
-                    while self.update_duration < goal_duration:
+                    while self.duration_limit < goal_duration:
 
                         # Do liner interpolation if no velocities
                         # if last_goal_point.velocities == 0 or current_goal_point.velocities == 0:
                         if 0.0 in last_goal_point.velocities or 0.0 in current_goal_point.velocities:
                             # print("Do simple interpolation")
-                            intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.update_duration/goal_duration)
-                        #     print("ALPHA %f" % (self.update_duration/goal_duration))
+                            intermediate_point = self.interpolate(last_goal_point, current_goal_point, self.duration_limit/goal_duration)
+                        #     print("ALPHA %f" % (self.duration_limit/goal_duration))
                         #
                         # # or do cubic interpolation
                         else:
                             # print("Do cubic interpolation")
-                            intermediate_point = self.cubic_interpolate(last_goal_point, current_goal_point, self.update_duration, goal_duration)
+                            intermediate_point = self.cubic_interpolate(last_goal_point, current_goal_point, self.duration_limit, goal_duration)
 
                         # Move to intermediate point
                         self._move_to(intermediate_point, intermediate_point.duration)
@@ -355,6 +361,7 @@ class MotionController:
         home_pt = JointTrajectoryPt(len(self.home_position))
         home_pt.set_positions(self.home_position)
         home_pt.set_duration(0)
+        self.start_move_time = time.time()
         self._move_to(home_pt, home_pt.duration)
 
     def move_to_home_from_uninitialized(self):
@@ -365,6 +372,7 @@ class MotionController:
         home_pt = JointTrajectoryPt(len(self.home_position))
         home_pt.set_positions(self.joint_positions)
         home_pt.set_duration(0.5)
+        self.start_move_time = time.time()
         for i in range(len(self.home_position)):
             home_pt.positions[i] = self.home_position[i]
             self._move_to(home_pt, home_pt.duration)
