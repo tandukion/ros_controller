@@ -7,16 +7,6 @@ import os
 import yaml
 import threading
 
-try:
-    import busio
-
-    from board import SCL, SDA              # import from adafruit_blinka
-    from adafruit_pca9685 import PCA9685    # import from adafruit-circuitpython-pca9685
-
-    from scripts.servo_driver.robot_servo import RobotServo
-except ImportError:
-    print("Not using real board")
-
 from .robot_state_machine import RobotStateMachine
 from .robot_status.robot_status import *
 from .ros_comm.simple_message import *
@@ -27,7 +17,7 @@ from .motion_controller.motion_controller import MotionController
 
 
 class RobotLogicController(RobotStateMachine):
-    def __init__(self, sim=False, robot="default", dof=6, home_pos=None):
+    def __init__(self, robot="default", dof=6, home_pos=None, robot_driver=None):
         """
         Robot Controller which handles the communication and the motion.
 
@@ -47,17 +37,8 @@ class RobotLogicController(RobotStateMachine):
         # Configuration
         self.robot_dof = dof
 
-        # Create Robot Servo
-        if not sim:
-            i2c = busio.I2C(SCL, SDA)
-            pca = PCA9685(i2c)
-            pca.frequency = 50
-
-            self.robot_servo = []
-            for i in range(self.robot_dof):
-                self.robot_servo.append(RobotServo(pca.channels[i]))
-        else:
-            self.robot_servo = None
+        # Add Robot Motor Driver
+        self.robot_driver = robot_driver
 
         # Initial joint position
         # TODO: for real robot, need to add reading current joint position
@@ -69,7 +50,7 @@ class RobotLogicController(RobotStateMachine):
         self.home_pos = home_pos if home_pos else initial_joint_pos
 
         # Create Motion Controller for Joint Position
-        self.motion_controller = MotionController(initial_joint_pos, self.home_pos, robot_servo=self.robot_servo)
+        self.motion_controller = MotionController(initial_joint_pos, self.home_pos, robot_servo=self.robot_driver)
 
         # Create Robot Status class
         self.robot_status = RobotStatus()
