@@ -3,10 +3,19 @@
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
 
-from scripts.robot_logic_controller import RobotLogicController
+import unittest
+from ..scripts.robot_logic_controller import RobotLogicController
 
 
-robot = RobotLogicController(sim=True, robot="default", dof=6, home_pos=[0, 0, 0, 0, 0, 0])
+class TestRobotLogic(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.robot = RobotLogicController(sim=True, robot="default", dof=6, home_pos=[0, 0, 0, 0, 0, 0])
 
-while 1:
-    continue
+    def test_run(self):
+        while 1:
+            continue
+
+
+if __name__ == '__main__':
+    unittest.main()

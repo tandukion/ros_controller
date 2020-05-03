@@ -8,9 +8,9 @@ import time
 import sched
 from math import degrees, radians
 
-from scripts.ros_comm.simple_message import *
-from scripts.ros_comm.ros_comm import write_messages, BytesIO
-from scripts.ros_comm.message_server import MessageServer
+from .simple_message import *
+from .ros_comm import write_messages, BytesIO
+from .message_server import MessageServer
 
 # dummy
 joint_pos_dummy = [0, 0, 0, 0, 0, 0]

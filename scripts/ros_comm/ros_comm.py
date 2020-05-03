@@ -6,7 +6,7 @@
 
 import socket
 import threading
-from scripts.ros_comm.simple_message import *
+from .simple_message import *
 
 try:
     from cStringIO import StringIO  # Python 2.x

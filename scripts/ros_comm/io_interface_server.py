@@ -6,9 +6,9 @@
 
 import time
 
-from scripts.ros_comm.simple_message import *
-from scripts.ros_comm.ros_comm import read_messages, write_messages, BytesIO
-from scripts.ros_comm.message_server import MessageServer
+from .simple_message import *
+from .ros_comm import read_messages, write_messages, BytesIO
+from .message_server import MessageServer
 
 
 class IoInterfaceServer (MessageServer):

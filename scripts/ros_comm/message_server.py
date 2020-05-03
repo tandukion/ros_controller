@@ -5,7 +5,7 @@
 # Currently only support Python 3.x
 
 import threading
-from scripts.ros_comm.ros_comm import ServerSocket
+from .ros_comm import ServerSocket
 
 
 class MessageServer(object):

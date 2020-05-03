@@ -3,7 +3,8 @@
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
 
-from scripts.robot_state_machine import RobotStateMachine
+import unittest
+from ..scripts.robot_state_machine import RobotStateMachine
 from time import sleep
 
 
@@ -28,25 +29,33 @@ class StateMachineTester(RobotStateMachine):
         pass
 
 
-tester = StateMachineTester()
+class TestStateMachine(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.state_machine = StateMachineTester()
 
-sleep(2)
-tester.trig_initialized()
+    def test_1_initialize(self):
+        sleep(1)
+        self.state_machine.trig_initialized()
 
-sleep(2)
-tester.trig_standby()
+    def test_2_standby(self):
+        sleep(1)
+        self.state_machine.trig_standby()
 
-sleep(2)
-tester.trig_motion()
+    def test_3_motion_success(self):
+        sleep(1)
+        self.state_machine.trig_motion()
+        sleep(1)
+        self.state_machine.trig_motion_completed()
+        sleep(1)
+        self.state_machine.trig_standby()
 
-sleep(2)
-tester.trig_motion_completed()
+    def test_4_motion_error(self):
+        sleep(1)
+        self.state_machine.trig_motion()
+        sleep(1)
+        self.state_machine.trig_motion_error()
 
-sleep(2)
-tester.trig_standby()
 
-sleep(2)
-tester.trig_motion()
-
-sleep(2)
-tester.trig_motion_error()
+if __name__ == '__main__':
+    unittest.main()

@@ -17,13 +17,13 @@ try:
 except ImportError:
     print("Not using real board")
 
-from scripts.robot_state_machine import RobotStateMachine
-from scripts.robot_status.robot_status import *
-from scripts.ros_comm.simple_message import *
-from scripts.ros_comm.joint_streamer_server import JointStreamerServer
-from scripts.ros_comm.robot_state_server import RobotStateServer
-from scripts.ros_comm.io_interface_server import IoInterfaceServer
-from scripts.motion_controller.motion_controller import MotionController
+from .robot_state_machine import RobotStateMachine
+from .robot_status.robot_status import *
+from .ros_comm.simple_message import *
+from .ros_comm.joint_streamer_server import JointStreamerServer
+from .ros_comm.robot_state_server import RobotStateServer
+from .ros_comm.io_interface_server import IoInterfaceServer
+from .motion_controller.motion_controller import MotionController
 
 
 class RobotLogicController(RobotStateMachine):
