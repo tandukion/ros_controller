@@ -3,16 +3,23 @@
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
 
-from scripts.robot_state_machine import *
+from scripts.robot_state_machine import RobotStateMachine
 from time import sleep
 
 
-class StateMachineTester:
+class StateMachineTester(RobotStateMachine):
     def __init__(self):
-        self._state_machine = RobotStateMachine(model=self)
+        # Initialize the state machine
+        RobotStateMachine.__init__(self)
 
     def _on_state_initialized(self):
         print("Initializing")
+
+    def _on_state_in_motion(self):
+        print("In Motion")
+
+    def _on_state_at_goal(self):
+        print("Reach Goal")
 
     def _on_state_enter(self):
         print("Entering state: ", self.state)

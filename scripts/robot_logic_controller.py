@@ -17,7 +17,8 @@ try:
 except ImportError:
     print("Not using real board")
 
-from scripts.robot_state_machine import *
+from scripts.robot_state_machine import RobotStateMachine
+from scripts.robot_status.robot_status import *
 from scripts.ros_comm.simple_message import *
 from scripts.ros_comm.joint_streamer_server import JointStreamerServer
 from scripts.ros_comm.robot_state_server import RobotStateServer
@@ -25,7 +26,7 @@ from scripts.ros_comm.io_interface_server import IoInterfaceServer
 from scripts.motion_controller.motion_controller import MotionController
 
 
-class RobotLogicController:
+class RobotLogicController(RobotStateMachine):
     def __init__(self, sim=False, robot="default", dof=6, home_pos=None):
         """
         Robot Controller which handles the communication and the motion.
@@ -33,6 +34,9 @@ class RobotLogicController:
         :param sim: Run on simulation or real robot
         :param robot: Type of the robot. Pre-defined robot type name: ["default", "yaskawa", "motoman"]
         """
+        # Start State Machine
+        RobotStateMachine.__init__(self)
+
         # Load robot config
         config_file = "robot_config.yaml"
         _config_file = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config', config_file))
@@ -69,9 +73,6 @@ class RobotLogicController:
 
         # Create Robot Status class
         self.robot_status = RobotStatus()
-
-        # Start State Machine
-        self._state_machine = RobotStateMachine(model=self)
 
         # Start Communication Server
         self.server_shutdown = False
