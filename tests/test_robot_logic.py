@@ -6,7 +6,7 @@
 from scripts.robot_logic_controller import RobotLogicController
 
 
-robot = RobotLogicController(sim=True, robot="default")
+robot = RobotLogicController(sim=True, robot="default", dof=6, home_pos=[0, 0, 0, 0, 0, 0])
 
 while 1:
     continue

@@ -5,6 +5,7 @@
 
 import os
 import json
+import yaml
 from transitions.extensions.markup import MarkupMachine
 
 
@@ -15,15 +16,21 @@ class RobotStateMachine(MarkupMachine):
     """
     def __init__(self,
                  model=None,
-                 config_dict_file="robot_state_machine_config.json"):
+                 config_dict_file="robot_state_machine_config.yaml"):
         """
         :param model: object with callback handler when entering and exiting state
         :param config_dict_file: JSON file containing state machine dictionary to read
         """
         # Load json config file
-        _config_dict_file = os.path.abspath(os.path.join(os.path.dirname(__file__), config_dict_file))
-        with open(_config_dict_file, 'rt') as cfg_file:
-            self._config = json.load(cfg_file)
+        _config_dict_file = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config', config_dict_file))
+
+        # Check file extension
+        if config_dict_file.endswith(".json"):
+            with open(_config_dict_file, 'rt') as cfg_file:
+                self._config = json.load(cfg_file)
+        elif config_dict_file.endswith(".yaml"):
+            with open(_config_dict_file) as cfg_file:
+                self._config = (yaml.load(cfg_file, Loader=yaml.FullLoader))
 
         # Initialize the state machine
         MarkupMachine.__init__(self,

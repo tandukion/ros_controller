@@ -3,6 +3,10 @@
 # Copyright (c) 2019, Dwindra Sulistyoutomo
 #
 
+import os
+import yaml
+import threading
+
 try:
     import busio
 
@@ -18,30 +22,27 @@ from scripts.ros_comm.simple_message import *
 from scripts.ros_comm.joint_streamer_server import JointStreamerServer
 from scripts.ros_comm.robot_state_server import RobotStateServer
 from scripts.ros_comm.io_interface_server import IoInterfaceServer
-from scripts.motion_controller.motion_controller import *
-
-# CONFIG
-ROBOT_DOF = 6
-# HOME_POSITION = [0, 30, 0, 0, 30, 0]
-HOME_POSITION = [0, -30, -30, 0, -90, 0]
-JOINT_NAMES = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
-
-JOINT_STREAM_PORT = 11000
-ROBOT_STATE_PORT = 11002
-IO_INTERFACE_PORT = 11003
-MOTOMAN_JOINT_STREAM_PORT = 50240
-MOTOMAN_ROBOT_STATE_PORT = 50241
-MOTOMAN_IO_INTERFACE_PORT = 50242
+from scripts.motion_controller.motion_controller import MotionController
 
 
 class RobotLogicController:
-    def __init__(self, sim=False, robot="default"):
+    def __init__(self, sim=False, robot="default", dof=6, home_pos=None):
         """
         Robot Controller which handles the communication and the motion.
 
         :param sim: Run on simulation or real robot
         :param robot: Type of the robot. Pre-defined robot type name: ["default", "yaskawa", "motoman"]
         """
+        # Load robot config
+        config_file = "robot_config.yaml"
+        _config_file = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config', config_file))
+        with open(_config_file) as cfg_file:
+            # Load only config specifically for current used robot
+            robot_config = (yaml.load(cfg_file, Loader=yaml.FullLoader))[robot]
+
+        # Configuration
+        self.robot_dof = dof
+
         # Create Robot Servo
         if not sim:
             i2c = busio.I2C(SCL, SDA)
@@ -49,26 +50,24 @@ class RobotLogicController:
             pca.frequency = 50
 
             self.robot_servo = []
-            for i in range(ROBOT_DOF):
+            for i in range(self.robot_dof):
                 self.robot_servo.append(RobotServo(pca.channels[i]))
-
-        # TODO: make joint position, robot state class
-        # Create Motion Controller for Joint Position
-        self.joint_names = JOINT_NAMES
-        initial_joint_pos = [0]*len(self.joint_names)
-        self.joint_pos = initial_joint_pos
-        self.home_pos = HOME_POSITION
-
-        if not sim:
-            self.motion_controller = MotionController(initial_joint_pos, self.home_pos, robot_servo=self.robot_servo)
         else:
-            self.motion_controller = MotionController(initial_joint_pos, self.home_pos)
+            self.robot_servo = None
+
+        # Initial joint position
+        # TODO: for real robot, need to add reading current joint position
+        initial_joint_pos = [0] * self.robot_dof
+        self.joint_pos = initial_joint_pos
+
+        # Home position
+        # if no home pos defined, set initial joint position as home position
+        self.home_pos = home_pos if home_pos else initial_joint_pos
+
+        # Create Motion Controller for Joint Position
+        self.motion_controller = MotionController(initial_joint_pos, self.home_pos, robot_servo=self.robot_servo)
 
         # Create Robot Status class
-        self.goal_joint_pos = []
-        for i in range(ROBOT_DOF):
-            self.goal_joint_pos.append(0)
-
         self.robot_status = RobotStatus()
 
         # Start State Machine
@@ -78,24 +77,12 @@ class RobotLogicController:
         self.server_shutdown = False
         self.servers = []
 
-        # Assign the port based on the robot
-        joint_port = 0
-        state_port = 0
-        io_port = 0
-        if robot == "default":
-            joint_port = JOINT_STREAM_PORT
-            state_port = ROBOT_STATE_PORT
-            io_port = IO_INTERFACE_PORT
-        elif robot == "yaskawa" or robot == "motoman":
-            joint_port = MOTOMAN_JOINT_STREAM_PORT
-            state_port = MOTOMAN_ROBOT_STATE_PORT
-            io_port = MOTOMAN_IO_INTERFACE_PORT
-
-        self.joint_streamer_server = JointStreamerServer(controller=self, port=joint_port)
+        # Assign the port based on the robot config
+        self.joint_streamer_server = JointStreamerServer(controller=self, port=robot_config["port"]["joint_stream"])
         self.joint_streamer_server.start_server()
-        self.robot_state_server = RobotStateServer(controller=self, port=state_port)
+        self.robot_state_server = RobotStateServer(controller=self, port=robot_config["port"]["robot_state"])
         self.robot_state_server.start_server()
-        self.io_interface_server = IoInterfaceServer(controller=self, port=io_port)
+        self.io_interface_server = IoInterfaceServer(controller=self, port=robot_config["port"]["io_interface"])
         self.io_interface_server.start_server()
 
         self.servers.append(self.joint_streamer_server)
@@ -162,11 +149,6 @@ class RobotLogicController:
         """
         Callback in motion
         """
-        # TODO: How to move robot here
-        # print("Moving robot")
-        # for i in range(len(self.joint_pos)):
-        #     self.joint_pos[i] = self.goal_joint_pos[i]
-
         # Set the robot state into in_motion
         self.robot_status.set_motion(TRUE)
 
@@ -208,8 +190,6 @@ class RobotLogicController:
 
         :param stream_message: Joint Stream message containing the sequence and the trajectory
         """
-        # for i in range(ROBOT_DOF):
-        #     self.goal_joint_pos[i] = goal_angle[i]
 
         # Simple Joint Position
         if stream_message.msg_type == JOINT_POSITION or stream_message.msg_type == JOINT_TRAJ_PT:

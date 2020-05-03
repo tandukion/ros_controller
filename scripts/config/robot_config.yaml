@@ -1,0 +1,17 @@
+default:
+  port:
+    joint_stream: 11000
+    robot_state:  11002
+    io_interface: 11003
+
+# Yaskawa Motoman Robot. Accept two types of name: "yaskawa" and "motoman
+yaskawa:
+  port:
+    joint_stream: 50240
+    robot_state:  50241
+    io_interface: 50242
+motoman:
+  port:
+    joint_stream: 50240
+    robot_state:  50241
+    io_interface: 50242
